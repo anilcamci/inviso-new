@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inviso</title>
+  <link rel="stylesheet" type="text/css" href="./assets/css/app.css">
+</head>
+<body allow="clipboard-read">
+  <section id="appContainer" class="main">
+    <div id="loading">Loading...</div>
+    <div id="splashscreen">
+        <button id="exit-code"> x </button>
+      <p class="splash-body splash-invite">To invite other users to this Inviso scene, share the following code with them:</p>
+      <form style="display: flex; justify-content: center; align-items: center">
+        <p id="invite-code" class="splash-code" style="display: inline-block"></p>
+        <div id="container">
+            <button type="button" id="copy-code" style="background: #f0f0f0; vertical-align: middle">Copy</button>
+        </div>
+      </form>
+      <hr width="90%" noshade class="splash-body">
+      <p class="splash-body splash-join">To join another user's scene, enter the code they shared with you: </p>
+      <div id="room-input" style="display: block">
+        <form>
+          <input id="roomcode" type="text" name="room" size="10" maxlength="6"/>
+          <button type="button" id="submit-splash" style="background: #f0f0f0">Join</button>
+        </form>
+      </div>
+      <p class="splash-body splash-footer">You will lose your current scene when you join another scene.<br>You can export your current scene to save your progress.</p>
+    </div>
+    <!-- <div id="splashbackground"></div> -->
+    <div id="GlobalContainer">
+      <form>
+        <input id="soundPicker" type="file" accept="audio/*" style="visibility:hidden">
+      </form>
+      <div id="UIContainer">
+        <button id="add-object-button"> + </button>
+        <div id="guis"></div>
+      </div>
+      <div id="SoundSearch"></div>
+
+      <div id="play-pause-button" title="Pause">Pause</div>
+
+      <div id="undo" class="active" title="Undo">Undo</div>
+      <div id="redo" class="active" title="Redo">Redo</div>
+
+      <img id="play-button" src="./assets/models/play.png" style="display: none">
+      <img id="pause-button" src="./assets/models/pause.png" style="display: none">
+      <!-- <div id="clear">Clear</div> -->
+
+      <div id=save title="Export Design">Export</div>
+      <div id=load title="Import Design">Import</div>
+
+      <div id=collab title="Invite or Join a Room">Invite | Join</div>
+
+      <!-- <div id="copy"><img id="copy-button" src="./assets/models/copy.png" title="Duplicate Selected"></div> -->
+      <!-- <div id="search-clear-search-button">
+        <img id="search-button" src="./assets/models/search.png" title="Search for Sounds">
+        <img id="clear-search-button" src="./assets/models/clear-search.png" title="Close Search Bar">
+      </div> -->
+
+      <div id="search-clear-search-button" title="Search for Sounds">Search for Sounds</div>
+
+      <div id="tooltip-label">Disable Tooltips</div>
+
+      <div id="help-add" class="help-bubble" style="right: 90px; top: 12px;">
+        <p>Once you click add, you can <b>click</b> anywhere to create</p>
+        <p>a <i>sound object</i>, or <b>click and drag</b> to draw a <i>sound zone</i>.</p>
+        <p>Add directional sounds to the object with <i>cones</i>. Click
+        <p><i>Add Trajectory</i> and drag the object to animate it.</p>
+      </div>
+
+      <div id="camera-label">Aerial view</div>
+
+      <div id="help-camera" class="help-bubble" style="bottom:20px; left: 50%; margin-left:60px">
+        <p><b>Click & drag</b> anywhere on the screen to rotate the</p>
+        <p>view; <b>right-click & drag</b> to pan; <b>scroll</b> to zoom.
+        <p>When <b>Altitude View</b> is active, you can change the
+        <p>height of a sound object or a trajectory point.</p>
+      </div>
+
+      <div id="help-head" class="help-bubble" style="top:50%; left: 50%; margin-left:-350px">
+        <p> Use <b>W</b>, <b>A</b>, <b>S</b>, <b>D</b> keys to move the head inside the scene.
+        <p> You can also <b>click & drag</b> to move it with your mouse.</p>
+      </div>
+
+      <div id="save-status" class="help-bubble" style="display:none; bottom:50px; left:20px;">
+        <p>Saving...</p>
+      </div>
+
+      <div id="load-status" class="help-bubble" style="display:none; bottom:50px; left:20px;">
+        <p>Loading...</p>
+      </div>
+    </div>
+  </section>
+
+  <input id="import" type="file"/>
+
+  <script src="./assets/js/zip.js"></script>
+  <script src="./assets/js/rStats.js"></script>
+  <script src="./assets/js/rStats.extras.js"></script>
+  <script src="./assets/js/simplify3D.js"></script>
+  <script src="./assets/js/libtess.min.js"></script>
+  <script src="./assets/js/app.js"></script>
+</body>
+</html>
