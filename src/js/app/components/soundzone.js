@@ -48,7 +48,7 @@ export default class SoundZone {
       new THREE.MeshBasicMaterial({
         color: 0xff1169,
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.5
       })
     );
     this.cursor.visible = false;
@@ -297,37 +297,32 @@ export default class SoundZone {
         group.add(sphereMesh, colliderMesh.clone());
         group.position.copy(point);
 
-        // apply a small y offset to prevent visible glitches when multiple zones overlap
-        group.position.y += Math.random();
-
         this.pointObjects.push(group);
       });
-      this.splinePoints = this.pointObjects.map(pt => pt.position);
-    } else if (args != null && args.updateType) {
+      this.splinePoints = this.pointObjects.map( pt => pt.position );
+    }
+    else if (args != null && args.updateType) {
       if (args.updateType === "delete") {
         let splicedPoint = this.pointObjects.splice(args.index, 1);
         this.containerObject.remove(splicedPoint[0], true);
-      } else if (args.updateType === "add") {
+      }
+      else if (args.updateType === "add") {
         let insertedPoint = new THREE.Object3D();
         insertedPoint.add(
           new THREE.Mesh(sphere, sphereMat.clone()),
           colliderMesh.clone()
         );
         insertedPoint.position.copy(this.splinePoints[args.index]);
-
-        // apply a small y offset to prevent visible glitches when multiple zones overlap
-        insertedPoint.position.y += Math.random();
-
         this.pointObjects.splice(args.index, 0, insertedPoint);
         this.containerObject.add(insertedPoint);
       }
-      this.splinePoints = this.pointObjects.map(pt => pt.position);
+      this.splinePoints = this.pointObjects.map( pt => pt.position );
     }
     this.spline = new THREE.CatmullRomCurve3(this.splinePoints);
     this.spline.type = 'centripetal';
     this.spline.closed = true;
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(this.spline.getPoints(200));
+    const geometry = new THREE.BufferGeometry().setFromPoints(this.spline.getPoints(200))
     let material = new THREE.LineBasicMaterial({
       color: 0xff1169,
       linewidth: 5,
@@ -340,10 +335,12 @@ export default class SoundZone {
     // fill the path
     const rotatedPoints = this.spline.getPoints(200);
     rotatedPoints.forEach((vertex) => {
-      vertex.y = vertex.z;
-      vertex.z = 0.0;
-    });
+        vertex.y = vertex.z;
+        vertex.z = 0.0;
+    })
+    //const shapeFill = new THREE.Shape(rotatedPoints);
     const shapeFill = new THREE.Shape(rotatedPoints);
+    // shapeFill.fromPoints(rotatedPoints);
     const shapeGeometry = new THREE.ShapeGeometry(shapeFill);
     shapeGeometry.rotateX(Math.PI / 2);
 
@@ -358,7 +355,8 @@ export default class SoundZone {
       transparent: true,
       opacity: Helpers.mapRange(opacityIntensity, 0, 2, 0.05, 0.35),
       side: THREE.BackSide,
-      premultipliedAlpha: true
+      premultipliedAlpha: true,
+      depthWrite: false
     });
     this.shape = new THREE.Mesh(shapeGeometry, material);
   }
@@ -370,8 +368,8 @@ export default class SoundZone {
   addToScene(scene, pos = false) {
     if (!this.isInitialized) {
       this.isInitialized = true;
-      var box = new THREE.Box3().setFromObject(this.shape);
-      box.getCenter(this.containerObject.position);
+      var box = new THREE.Box3().setFromObject( this.shape );
+      box.getCenter( this.containerObject.position );
       scene.add(this.containerObject);
       this.objects.forEach((obj) => {
         obj.translateX(-this.containerObject.position.x);
@@ -379,25 +377,26 @@ export default class SoundZone {
         this.containerObject.add(obj);
       });
 
-      if (!pos && this.roomCode != null) {
+      if(!pos && this.roomCode != null){
         this.zoneKey.set({
           position: this.containerObject.position,
-          type: this.type,
+          type: this.type, 
           zone: this.splinePoints,
           sound: null,
           volume: null,
           scale: 1,
           rotation: this.containerObject.rotation.y,
           lastEdit: this.headKey
-        });
-      } else if (pos) {
+        })
+      } else if(pos){
         this.containerObject.position.copy(
           new THREE.Vector3(pos.x, pos.y, pos.z)
         );
       }
-
-    } else {
-      if (pos) {
+      
+    }
+    else {
+      if(pos){
         this.containerObject.position.copy(
           new THREE.Vector3(pos.x, pos.y, pos.z)
         );
@@ -405,9 +404,6 @@ export default class SoundZone {
       this.containerObject.add(this.shape);
       this.containerObject.add(this.spline.mesh);
     }
-
-    // apply a small y offset to prevent visible glitches when multiple zones overlap
-    this.containerObject.position.y += Math.random();
   }
 
   removeFromScene(scene) {
