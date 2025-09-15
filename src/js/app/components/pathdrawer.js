@@ -130,7 +130,7 @@ export default class PathDrawer {
       this.clear();
 
       if (object) {
-        console.log("adding to scene");
+        // console.log("adding to scene");
         object.addToScene(this.scene);
       }
       return object;

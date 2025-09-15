@@ -624,7 +624,7 @@ export default class SoundObject {
 
       reader.readAsArrayBuffer(file);
     });
-    console.log("finished sound loading");
+    //console.log("finished sound loading");
     return promise;
 }
 

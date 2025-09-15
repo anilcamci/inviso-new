@@ -457,6 +457,7 @@ onMouseMove(main, event) {
           // if soundzones overlap, keep last selected
           if (intersectObjects[0].type !== 'SoundTrajectory' && !(main.activeObject && main.activeObject.type === 'SoundZone' && intersectObjects[0].type === 'SoundZone' && intersectObjects.indexOf(main.activeObject) > -1)) {
             main.setActiveObject(intersectObjects[0]);
+            document.getElementById('help-add').style.display = 'none';
           }
           else if(intersectObjects[0].type === 'SoundTrajectory'){
             if(main.roomCode == null || intersectObjects[0].parentSoundObject.type !== 'HeadObject' || (intersectObjects[0].parentSoundObject.type === 'HeadObject' && main.roomCode && intersectObjects[0].ownerHeadKey == main.headKey.key)){

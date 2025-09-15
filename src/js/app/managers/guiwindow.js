@@ -32,7 +32,7 @@ export default class GUIWindow {
 	// add listeners for dragging parameters
 	document.addEventListener('mousemove', this.drag.bind(this));
 	document.addEventListener('mouseup', this.stopDragging.bind(this));
-	this.setupHelpBubble('ambisonics', 'help-mode', 40, 400, false);
+	// this.setupHelpBubble('ambisonics', 'help-mode', 40, 400, false);
 	this.dragEvent = {};
 
 	this.typeEvent = {};
@@ -126,7 +126,7 @@ export default class GUIWindow {
 		}
 	  }
 	} else {
-	  console.log('cannot show ui for type',obj.type);
+	  console.log('Cannot show UI for type ',obj.type);
 	}
 	this.container.style.opacity = 1;
 	this.container.style.pointerEvents = this.isDisabled ? 'none' : 'auto';
@@ -159,7 +159,7 @@ export default class GUIWindow {
   // set up initial parameters for a sound object
   initObjectGUI(object) {
 	  var mesh = object.containerObject;
-	  var elem = this.addElem('OBJECT ' + (this.app.soundObjects.indexOf(object) + 1), true);
+	  var elem = this.addElem('OBJECT ' + (this.app.soundObjects.indexOf(object) + 1), "sphere");
 	  elem.style.fontWeight = 'bold';
 	  let tempDb = this.dbRef;
 	  let headKey = this.headKey;
@@ -357,21 +357,29 @@ export default class GUIWindow {
 	}
 	guiHeight = elem.scrollHeight + 35;
 	if (this.app.isEditingObject) {
-		document.getElementById('add-trajectory').style.display = 'none';
+		let trajectory = document.getElementById('add-trajectory');
+    	if (trajectory) {
+       		 trajectory.style.display = 'none';
+    	}
+
+		var trajectoryElement = document.getElementById('trajectory');
+    	if(trajectoryElement) {
+        	trajectoryElement.style.display = 'none';
+    	}
 	}
 
-	this.setupHelpBubble('omnisphere-sound-loader', 'file-input-help', 160, 315);
-	this.setupHelpBubble('microphoneChannel', 'channel-help', 175, 315);
-	this.setupHelpBubble('time', 'time-help', 180, 315);
-	this.setupHelpBubble('volume-control', 'volume-help', 195, 315);
-	this.setupHelpBubble('object-globals', 'altitude-help', 240, 315);
-	this.setupHelpBubble('add-cone', 'add-cone-help', 310, 315);
-	this.setupHelpBubble('add-trajectory', 'add-trajectory-help', 350, 315);
-	this.setupHelpBubble('left-top-gui', 'top-gui-help', 122, 315);
-	this.setupHelpBubble('center-top-gui', 'top-gui-help', 122, 315);
-	this.setupHelpBubble('right-top-gui', 'top-gui-help', 122, 315);
-	this.setupHelpBubble('nav-left', 'gui-nav-help', 70, 315);
-	this.setupHelpBubble('nav-right', 'gui-nav-help', 70, 315);
+	// this.setupHelpBubble('omnisphere-sound-loader', 'file-input-help', 160, 315);
+	// this.setupHelpBubble('microphoneChannel', 'channel-help', 175, 315);
+	// this.setupHelpBubble('time', 'time-help', 180, 315);
+	// this.setupHelpBubble('volume-control', 'volume-help', 195, 315);
+	// this.setupHelpBubble('object-globals', 'altitude-help', 240, 315);
+	// this.setupHelpBubble('add-cone', 'add-cone-help', 310, 315);
+	// this.setupHelpBubble('add-trajectory', 'add-trajectory-help', 350, 315);
+	// this.setupHelpBubble('left-top-gui', 'top-gui-help', 122, 315);
+	// this.setupHelpBubble('center-top-gui', 'top-gui-help', 122, 315);
+	// this.setupHelpBubble('right-top-gui', 'top-gui-help', 122, 315);
+	// this.setupHelpBubble('nav-left', 'gui-nav-help', 70, 315);
+	// this.setupHelpBubble('nav-right', 'gui-nav-help', 70, 315);
 
 }
 
@@ -408,7 +416,7 @@ export default class GUIWindow {
 	}
 
 	// called every single time the object is clicked
-	var elem = this.addElem('', false, document.getElementById('add-trajectory'));
+	var elem = this.addElem('', "cone", document.getElementById('add-trajectory'));
 	elem.id = 'cone-' + cone.id;
 	elem.className = 'cone';
     if (!isVisible) {
@@ -761,6 +769,8 @@ export default class GUIWindow {
 	button.style.borderRadius = "6px";
 	button.style.margin = '0 36% 4% 36%';
 	document.getElementById('delete-trajectory').style.padding = "0%";
+	document.getElementById('delete-trajectory').style.marginTop = "-2px";
+	document.getElementById('delete-trajectory').style.marginLeft = "10px";
 
 
 	this.addParameter({
@@ -816,9 +826,8 @@ export default class GUIWindow {
   initSoundzoneGUI(zone) {
 	  let tempDb = this.dbRef;
 	  let headKey = this.headKey;
-	  var elem = this.addElem('Zone ' + (this.app.soundZones.indexOf(zone)+1), false);
+	  var elem = this.addElem('ZONE ' + (this.app.soundZones.indexOf(zone)+1), "zone");
 	  let roomCode = this.roomCode;
-
 
 	  function setZonePosition(component, dx) {
 		zone.containerObject.position[component] += dx;
@@ -979,8 +988,9 @@ export default class GUIWindow {
   }
 
   initHeadGUI(object) {
-	  var elem = this.addElem('HEAD', false);
+	  var elem = this.addElem('HEAD', "head");
 	  let roomCode = this.roomCode;
+
 	  function setObjectPosition(component, dx) {
 		this.app.isAllowMouseDrag = true;
 		let destination = object.containerObject.position.clone();
@@ -1923,10 +1933,14 @@ useAudioInput(deviceId) {
 	  }
 	}
 	else {
-	  let everyObject = [].concat(this.app.soundObjects, this.app.soundZones);
+	  let everyObject;
 	  if (!this.app.isEditingObject){
-		  everyObject.push(this.app.headObject);
+		everyObject = [].concat(this.app.soundObjects, this.app.soundZones);
+		everyObject.push(this.app.headObject);
+	  } else {
+		everyObject = [].concat(this.app.soundObjects);
 	  }
+
 	  let i = everyObject.indexOf(this.obj);
 	  if (i > -1) {
 		i = e.direction === 'left' ? i - 1 + everyObject.length : i + 1;
@@ -2010,7 +2024,7 @@ useAudioInput(deviceId) {
 	}
   }
 
-addSwipeEvents(div, title, isObject) {
+addSwipeEvents(div, title, objectType) {
 	// add touch interactions
 	let x = null,
 		y = null,
@@ -2047,7 +2061,7 @@ addSwipeEvents(div, title, isObject) {
 	  title.style.marginLeft = 0;
 	  if (Math.abs(dx) >= 40) {
 		const direction = dx < 0 ? "left" : "right";
-		const objectType = isObject ? "object" : "cone";
+		const objectType = objectType == "object" ? "object" : "cone";
 		self.nav({direction: direction, type:objectType});
 		/*
 		if (this.app.isEditingObject){
@@ -2069,7 +2083,7 @@ addSwipeEvents(div, title, isObject) {
   }
   //---------- dom building blocks -----------//
   // add a new div
-  addElem(name, addEditParameter, siblingAfter) {
+  addElem(name, objectType, siblingAfter) {
 	  var div = document.createElement('div');
 	  div.classList += 'baseParam';
 	  var title = document.createElement('h4');
@@ -2077,12 +2091,12 @@ addSwipeEvents(div, title, isObject) {
 	  p.appendChild(document.createTextNode(name));
 	  p.style.fontWeight = 'bold';
 	  p.style.display = 'block';
-	  p.style.marginBottom = '0.8em';
+	  p.style.marginBottom = '0.2em';
 	  p.className += ' title';
 	  title.appendChild(p);
 	  div.appendChild(title);
 	  this.container.insertBefore(div, siblingAfter || null);
-	  if (addEditParameter) {
+	  if (objectType == "sphere") {
 		// add three horizontal parameters for editing: Zoom, Duplicate, Delete
 		this.addParameter({
 		  value: this.app.isEditingObject ? 'Zoom Out' : 'Zoom In',
@@ -2110,16 +2124,43 @@ addSwipeEvents(div, title, isObject) {
 			  callback: this.deleteObject.bind(this)
 			}]
 		}, title);
+	  }
+
+		if (objectType == "zone") {
+		// add three horizontal parameters for editing: Duplicate, Delete
+
+		this.addParameter({
+			value: 'Duplicate',
+			cls: 'top-gui left-panel-zone',
+			events: [{
+			  type: 'click',
+			  callback: this.copyItem.bind(this)
+			}]
+		}, title);
+
+		this.addParameter({
+			value: 'Delete',
+			cls: 'top-gui right-panel',
+			events: [{
+			  type: 'click',
+			  callback: this.deleteObject.bind(this)
+			}]
+		}, title);
 
 
 	  }
 
-	  if (addEditParameter || siblingAfter) {
-		// TODO: prevent Swipe Event to head in edit mode
-		this.addSwipeEvents(div, title, addEditParameter);
-	  }
+	// Object Type was previously addEditElement boolean, which was
+	// only true for objects and cones and not zones. This was switched to
+	// object type so edit buttons above can be context-dependent. This change
+	// hasn't been reflected in the addSwipeEvent implementation.
+	//  if (objectType == "object" || siblingAfter) {
+	// 	// TODO: prevent Swipe Event to head in edit mode
+	// 	this.addSwipeEvents(div, title, objectType);
+	//  }
 	  return div;
   }
+
 
   // add a line for the parameter in the UI
   // parameter p can contain properties:
@@ -2392,30 +2433,30 @@ addSwipeEvents(div, title, isObject) {
 	parent.defaultValue = text;
 	// parent.appendChild(document.createTextNode(text));
   }
-  setupHelpBubble(triggerId, helpId, topOffset, sideOffset, rightOffset = true) {	
-    const triggerElement = document.getElementById(triggerId);
-    const helpElement = document.getElementById(helpId)
+//   setupHelpBubble(triggerId, helpId, topOffset, sideOffset, rightOffset = true) {	
+//     const triggerElement = document.getElementById(triggerId);
+//     const helpElement = document.getElementById(helpId)
 
-	try {
-		triggerElement.addEventListener('mouseover', function() {
-			var tooltips = document.getElementById('tooltips');
-			if (tooltips.value === 'true') {
-			  helpElement.style.display = 'block';
-			  helpElement.style.position = 'fixed';
-			  if ( rightOffset === true ) {
-				  helpElement.style.right = sideOffset + 'px';
-			  }
-			  else {
-				  helpElement.style.left = sideOffset + 'px';
-			  }
-			  helpElement.style.top = topOffset + 'px';
-			}
-		  });
+// 	try {
+// 		triggerElement.addEventListener('mouseover', function() {
+// 			var tooltips = document.getElementById('tooltips');
+// 			if (tooltips.value === 'true') {
+// 			  helpElement.style.display = 'block';
+// 			  helpElement.style.position = 'fixed';
+// 			  if ( rightOffset === true ) {
+// 				  helpElement.style.right = sideOffset + 'px';
+// 			  }
+// 			  else {
+// 				  helpElement.style.left = sideOffset + 'px';
+// 			  }
+// 			  helpElement.style.top = topOffset + 'px';
+// 			}
+// 		  });
 	  
-		  triggerElement.addEventListener('mouseout', function() {
-			helpElement.style.display = 'none';
-		  });
-	}
-	catch (e) {}
-  }
+// 		  triggerElement.addEventListener('mouseout', function() {
+// 			helpElement.style.display = 'none';
+// 		  });
+// 	}
+// 	catch (e) {}
+//   }
 }

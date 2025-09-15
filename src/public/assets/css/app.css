@@ -155,6 +155,84 @@ body {
   top: calc(50% - 20px);
   left: calc(50% - 35px); }
 
+html {
+  -ms-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font: 16px/1 sans-serif;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased; }
+
+h1,
+h2,
+h3,
+h4,
+p,
+blockquote,
+figure,
+ol,
+ul {
+  margin: 0;
+  padding: 0; }
+
+main,
+li {
+  display: block; }
+
+h1,
+h2,
+h3,
+h4 {
+  font-size: inherit; }
+
+strong {
+  font-weight: bold; }
+
+a,
+button {
+  color: inherit;
+  transition: .3s; }
+
+a {
+  text-decoration: none; }
+
+button {
+  overflow: visible;
+  border: 0;
+  font: inherit;
+  -webkit-font-smoothing: inherit;
+  letter-spacing: inherit;
+  background: none;
+  cursor: pointer; }
+
+::-moz-focus-inner {
+  padding: 0;
+  border: 0; }
+
+:focus {
+  outline: 0; }
+
+img {
+  max-width: 100%;
+  height: auto;
+  border: 0; }
+
+body {
+  overflow: hidden; }
+
+.main {
+  position: relative;
+  width: 100%;
+  height: 100vh; }
+
+#loading {
+  font-family: roboto,'helvetica neue', helvetica, arial, sans-serif;
+  position: absolute;
+  top: calc(50% - 20px);
+  left: calc(50% - 35px); }
+
 #UIContainer {
   position: fixed;
   right: 22px;
@@ -184,8 +262,8 @@ body {
 #add-trajectory {
   margin-top: -15px !important; }
 
-#add-trajectory.active span{
-    background-color: #ff3574;}
+#add-trajectory.active span {
+  background-color: #ff3574; }
 
 #delete-cone {
   margin: 0.6em 0; }
@@ -225,6 +303,9 @@ body {
 
 .left-panel {
   margin-right: 3px;
+  border-radius: 9px 0 0 9px; }
+
+.left-panel-zone {
   border-radius: 9px 0 0 9px; }
 
 .right-panel {
@@ -312,10 +393,9 @@ body {
   height: 1.2em;
   max-width: 100px; }
 
-  #guis #fileTextStatus {
-    height: 20px;
-    max-width: 100px;
-  }
+#guis #fileTextStatus {
+  height: 20px;
+  max-width: 100px; }
 
 #guis .remove-file {
   padding: 0 2px;
@@ -516,10 +596,10 @@ input[type='file'] {
   opacity: 0.8; }
 
 #add-trajectory:hover {
-    opacity: 1; }
+  opacity: 1; }
 
 #add-trajectory span:hover {
-    opacity: 1; }
+  opacity: 1; }
 
 #redo {
   position: absolute;
@@ -564,14 +644,14 @@ input[type='file'] {
   opacity: 0.8; }
 
 #ambisonics {
-    position: absolute;
-    top: 16px;
-    left: 405px;
-    cursor: pointer;
-    color: #5d5e5d; }
-  
+  position: absolute;
+  top: 16px;
+  left: 405px;
+  cursor: pointer;
+  color: #5d5e5d; }
+
 #ambisonics:hover {
-    opacity: 0.8; }
+  opacity: 0.8; }
 
 #collab {
   display: none;

@@ -69,7 +69,6 @@ export default class Main {
     this.isAddingTrajectory = false;
     this.isAddingObject = false;
     this.isEditingObject = false;
-    this.isUserStudyLoading = false;
     this.isAllowMouseDrag = false;
     this.isAddingSound = false;
     this.trajectoryCache = {};
@@ -109,7 +108,6 @@ export default class Main {
 
     this.ray.params.Line.threshold = 10;
 
-    console.log("ray: ", this.ray);
     // Set container property to container element
     this.container = container;
 
@@ -1407,7 +1405,7 @@ export default class Main {
     }
   }
 
-  exitEditObjectView(reset){
+  exitEditObjectView(){
     document.getElementById('camera-label').style.display = 'block';
     let addTrajectory = document.getElementById('add-trajectory');
     
@@ -1451,7 +1449,7 @@ export default class Main {
       }
     });
 
-    if (!this.isAddingTrajectory && !this.isAddingObject && !reset) {
+    if (!this.isAddingTrajectory) {
       new TWEEN.Tween(this.camera.threeCamera.position)
         .to(this.originalCameraPosition, 800)
         .start();
@@ -1496,12 +1494,13 @@ export default class Main {
   }
 
   reset() {
-    var zoomAmount = this.camera.threeCamera.position.distanceTo(new THREE.Vector3(0, 0, 0));
     if (this.isEditingObject) {
-      this.exitEditObjectView(true);
+      this.exitEditObjectView();
+    }else{
+      var zoomAmount = this.camera.threeCamera.position.distanceTo(new THREE.Vector3(0, 0, 0));
+      this.controls.threeControls.reset();
+      this.camera.threeCamera.position.set(0, zoomAmount, 0);
     }
-    this.controls.threeControls.reset();
-    this.camera.threeCamera.position.set(0, zoomAmount, 0);
   }
 
   set audio(audio) {
@@ -1674,13 +1673,14 @@ export default class Main {
     if (this.isPlaying) {
         element.innerHTML = 'Pause';
         element.title = 'Pause'
-        this.audio.context.resume();
+        //this.audio.context.resume();
     } else {
         element.innerHTML = 'Play';
         element.title = 'Play';
-        this.audio.context.suspend();
+        //this.audio.context.suspend();
     }
-
+    
+    [].concat(this.soundObjects, this.soundZones).forEach(sound => sound.checkPlayState(this));
     [].concat(this.soundObjects, this.soundZones).forEach(obj => obj.toggleAppearance(this))
     if (this.roomCode != null) {
     // TODO: must edit the cloud function on room deletion to also remove this globalIsPlaying value
@@ -2433,7 +2433,11 @@ export default class Main {
 
         let json = JSON.parse(config);
         let loader = new THREE.ObjectLoader();
-        const cam = loader.parse(json.camera);
+        var cam = new Camera(this.renderer.threeRenderer).threeCamera
+        if(json.camera){
+          cam = loader.parse(json.camera);
+          cam.aspect = this.camera.threeCamera.aspect;
+        } 
 
         json.soundObjects.forEach(obj => {
           let parsed = JSON.parse(obj);
