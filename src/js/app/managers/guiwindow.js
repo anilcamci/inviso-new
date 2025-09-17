@@ -1318,6 +1318,12 @@ export default class GUIWindow {
 				self.replaceTextContent(span, file.name);
 				obj.setAudioPosition(obj.omniSphere);
 				span.nextSibling.style.display = 'inline-block';
+
+				// Fix: stop loaded sound if globally paused
+				if (!self.app.isPlaying) {
+					obj.stopSound();
+				}
+
 			  });
 			} else {
 			  // replace sound attached to existing cone
@@ -1362,6 +1368,12 @@ export default class GUIWindow {
 					values.spread = cone.sound.spread;
 					values.longitude = cone.long;
 					values.latitude = cone.lat;
+
+						// Fix: stop cone sound if globally paused 
+						if (!self.app.isPlaying) {
+							obj.stopConeSound(cone);
+							cone.userSetPlay = false;
+						}
 				  } else {
 					cone = obj.createCone(sound);
 					cone.file = file;
@@ -1384,6 +1396,12 @@ export default class GUIWindow {
 					// if (!self.app.isPlaying) {
 					//   obj.stopConeSound(cone);
 					// }
+
+					// Fix: stop cone sound if globally paused
+					if (!self.app.isPlaying) {
+						obj.stopConeSound(cone);
+						cone.userSetPlay = false;
+					}
 				  }
 				  if(self.roomCode != null){
 					let coneUUID = cone.uuid;
@@ -1442,6 +1460,10 @@ export default class GUIWindow {
                     obj.sound.state.isAudioPaused = true;
                     obj.shape.material.color.setHex(0x8F8F8F);
                 }
+					// Fix: stop sound zone if globally paused
+					if (!self.app.isPlaying) {
+						obj.stopSound();
+					}
 			});
 			self.replaceTextContent(span, file.name);
 			span.nextSibling.style.display = 'inline-block';

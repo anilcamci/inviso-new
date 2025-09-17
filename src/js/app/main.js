@@ -1671,23 +1671,38 @@ export default class Main {
   toggleGlobalPlay(element) {
     this.isPlaying = !this.isPlaying;
     if (this.isPlaying) {
-        element.innerHTML = 'Pause';
-        element.title = 'Pause'
-        //this.audio.context.resume();
+      element.innerHTML = 'Pause';
+      element.title = 'Pause'
+
+      // Fix: resume audio context and sync to playState
+      this.audio.context.resume();
+      [].concat(this.soundObjects, this.soundZones).forEach(obj => {
+        if (obj.type === 'SoundObject') {
+          obj.checkPlayState(this);
+        }
+      });
+
     } else {
-        element.innerHTML = 'Play';
-        element.title = 'Play';
-        //this.audio.context.suspend();
+      element.innerHTML = 'Play';
+      element.title = 'Play';
+      //this.audio.context.suspend();
+
+      // Fix: remove audio context suspension; stop sounds via checkPlayState
+      [].concat(this.soundObjects, this.soundZones).forEach(obj => {
+        if (obj.type === 'SoundObject') {
+          obj.checkPlayState(this);
+        }
+      });
     }
-    
+
     [].concat(this.soundObjects, this.soundZones).forEach(sound => sound.checkPlayState(this));
     [].concat(this.soundObjects, this.soundZones).forEach(obj => obj.toggleAppearance(this))
     if (this.roomCode != null) {
-    // TODO: must edit the cloud function on room deletion to also remove this globalIsPlaying value
-        this.dbRef.child('globals').child('sound').update({
-            globalIsPlaying: this.isPlaying,
-            lastEdit: this.headKey.key
-        });
+      // TODO: must edit the cloud function on room deletion to also remove this globalIsPlaying value
+      this.dbRef.child('globals').child('sound').update({
+        globalIsPlaying: this.isPlaying,
+        lastEdit: this.headKey.key
+      });
     }
   }
 
