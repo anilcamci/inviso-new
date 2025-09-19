@@ -273,9 +273,9 @@ export default class SoundObject {
     object.updateMatrixWorld();
     o.setFromMatrixPosition(object.matrixWorld);
     if(object.sound){
-      var position = this.linearInterpToSpherical(o.x, o.y, o.z);
       object.sound.panner.setPosition(o.x, o.y, o.z);
       if (object.sound && object.sound.encoder) {
+        var position = this.linearInterpToSpherical(o.x, o.y, o.z);
         object.sound.encoder.azim = position.azimuth;
         object.sound.encoder.elev = position.elevation;
         object.sound.encoder.updateGains();
@@ -548,11 +548,17 @@ export default class SoundObject {
           sound.panner.distanceModel = 'inverse';
           sound.panner.refDistance = 100;
 
-          // default to binaural mode
           sound.volume = context.createGain();
           sound.volume.connect(sound.analyser);
           sound.volume.connect(sound.panner);
-          sound.panner.connect(mainMixer);
+          // Default to Binaural Mode
+          if(!isAmbisonicsMode){
+            sound.panner.connect(mainMixer);
+          }else{ // Ambisonics Mode
+            sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
+            sound.panner.connect(sound.encoder.in);
+            sound.encoder.out.connect(mainMixer);
+          }
           mainMixer.connect(audio.destination);
           mainMixer.gain.value = mute ? 0 : 1;
           soundObjects.push(sound);
@@ -1547,7 +1553,7 @@ function setAmbisonicsMode(isAmbisonicsMode) {
     const outputChannels = audioContext.destination.maxChannelCount;
 
     if (outputChannels < 16) {
-      showAmbisonicsModal('Ambisonics mode is not available unless an audio output device with 16 or more channels is connected.');
+      showAmbisonicsModal('Ambisonics mode is only available when your audio output device has at least 16 channels.');
       return false;
     }
     else {
@@ -1569,14 +1575,14 @@ function setAmbisonicsMode(isAmbisonicsMode) {
       sound.volume.connect(sound.panner);
       sound.panner.connect(sound.encoder.in);
       sound.encoder.out.connect(sound.mainMixer);
-      sound.mainMixer.connect(sound.audio.destination);
+      
     } else {
       // switch back to binaural mode
       sound.volume.connect(sound.analyser);
       sound.volume.connect(sound.panner);
       sound.panner.connect(sound.mainMixer);
-      sound.mainMixer.connect(sound.audio.destination);
     }
+    sound.mainMixer.connect(sound.audio.destination);
   });
   return true;
 }
