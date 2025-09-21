@@ -7,7 +7,7 @@ import Helpers from '../../utils/helpers';
 import Action from '../model/action';
 import { createAudioMeter, volumeAudioProcess } from '../helpers/volume-meter';
 
-let isAmbisonicsMode = false;
+let isAmbisonicMode = false;
 const soundObjects = [];
 
 export default class SoundObject {
@@ -555,9 +555,9 @@ export default class SoundObject {
           sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
 
           // Default to Binaural Mode
-          if(!isAmbisonicsMode){
+          if(!isAmbisonicMode){
             sound.panner.connect(mainMixer);
-          }else{ // Ambisonics Mode
+          }else{ // Ambisonic Mode
             
             sound.panner.connect(sound.encoder.in);
             sound.encoder.out.connect(mainMixer);
@@ -1540,18 +1540,18 @@ export default class SoundObject {
   }
 }
 
-// event handler for switching to ambisonics mode
+// event handler for switching to ambisonic mode
 document.getElementById('outputMode').addEventListener('click', function() {
-  const newMode = !isAmbisonicsMode;
-  if (setAmbisonicsMode(newMode)) {
-    isAmbisonicsMode = newMode; 
-    this.textContent = isAmbisonicsMode ? 'Output: Ambisonics' : 'Output: Binaural';
-    this.style.color = isAmbisonicsMode ? 'rgb(251,21,97)' : '#5d5e5d';
+  const newMode = !isAmbisonicMode;
+  if (setAmbisonicMode(newMode)) {
+    isAmbisonicMode = newMode; 
+    this.textContent = isAmbisonicMode ? 'Output: Ambisonic' : 'Output: Binaural';
+    this.style.color = isAmbisonicMode ? 'rgb(251,21,97)' : '#5d5e5d';
   }
 });
 
-function setAmbisonicsMode(isAmbisonicsMode) {
-  if (isAmbisonicsMode) {
+function setAmbisonicMode(isAmbisonicMode) {
+  if (isAmbisonicMode) {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const outputChannels = audioContext.destination.maxChannelCount;
     audioContext.close();
@@ -1563,8 +1563,8 @@ function setAmbisonicsMode(isAmbisonicsMode) {
     sound.panner.disconnect();
     sound.mainMixer.disconnect();
 
-    if (isAmbisonicsMode) {
-      // switch to ambisonics mode
+    if (isAmbisonicMode) {
+      // switch to ambisonic mode
       sound.volume.connect(sound.analyser);
       sound.volume.connect(sound.panner);
       sound.panner.connect(sound.encoder.in);

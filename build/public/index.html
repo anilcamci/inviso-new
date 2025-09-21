@@ -45,13 +45,13 @@
       <div id="undo" class="active" title="Undo">Undo</div>
       <div id="redo" class="active" title="Redo">Redo</div>
 
-      <img id="play-button" src="./assets/models/play.png" style="display: none">
-      <img id="pause-button" src="./assets/models/pause.png" style="display: none">
+      <!-- <img id="play-button" src="./assets/models/play.png" style="display: none">
+      <img id="pause-button" src="./assets/models/pause.png" style="display: none"> -->
       <!-- <div id="clear">Clear</div> -->
 
-      <div id=save title="Export Design">Export</div>
-      <div id=load title="Import Design">Import</div>
-      <div id=ambisonics><span id="binauralMode" class="active">Binaural</span></div>
+      <div id=save>Export</div>
+      <div id=load>Import</div>
+      <div id=outputMode>Output: Binaural</div>
       <div id=collab title="Invite or Join a Room">Invite | Join</div>
 
       <!-- <div id="copy"><img id="copy-button" src="./assets/models/copy.png" title="Duplicate Selected"></div> -->
@@ -60,9 +60,16 @@
         <img id="clear-search-button" src="./assets/models/clear-search.png" title="Close Search Bar">
       </div> -->
 
-      <div id="search-clear-search-button" title="Search for Sounds">Search for Sounds</div>
+      <div id="search-clear-search-button">Search for Sounds</div>
 
       <div id="tooltip-label">Disable Tooltips</div>
+
+      <div id="help-output" class="help-bubble" style="left: 300px; top: 45px; display: none">
+        <p>Switch between <b>Binaural</b> and <b>Ambisonic</b> audio</p>
+        <p>output modes. <b>Ambisonic</b> mode requires an audio</p>
+        <p>output device with at least 16 channels as well as</p>
+        <p>an external Ambisonic decoder.</p>
+      </div>
 
       <div id="help-add" class="help-bubble" style="right: 90px; top: 12px;">
         <p>Once you click add, you can <b>click</b> anywhere to create</p>
@@ -85,12 +92,12 @@
         <p> You can also <b>click & drag</b> to move it with your mouse.</p>
       </div>
 
-      <!-- <div id="help-mode" class="help-bubble" style="display: none;">
+      <div id="help-mode" class="help-bubble" style="display: none;">
         <p>If your computer's selected audio output device has 16</p>
         <p>or more channels, you can switch to ambisonics mode</p>
         <p>by clicking on the `Binaural` button. See the README for</p>
         <p>more information.</p>
-      </div> -->
+      </div>
 
       <div id="file-input-help" class="help-bubble" style="display:none;">
         <p>Select an audio file for playback or a connected input device for live audio input.</p>
@@ -140,13 +147,6 @@
   </section>
 
   <input id="import" type="file"/>
-
-  <div id="ambisonics_modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center; font-family: roboto, 'helvetica neue', helvetica, arial, sans-serif; font-size: 0.95em;">
-    <div style="background: white; padding: 20px; border-radius: 20px; text-align: center; max-width: 400px; width: 90%;">
-      <p id="modal-message" style="margin-bottom: 20px;">Ambisonics mode is not available unless an audio output device with 16 or more channels is connected.</p>
-      <button id="modal-close" style="padding: 10px 20px; background: rgb(13, 147, 204); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">CLOSE</button>
-    </div>
-  </div>
 
   <script src="./assets/js/zip.js"></script>
   <script src="./assets/js/rStats.js"></script>
