@@ -1541,11 +1541,11 @@ export default class SoundObject {
 }
 
 // event handler for switching to ambisonics mode
-document.getElementById('binauralMode').addEventListener('click', function() {
+document.getElementById('outputMode').addEventListener('click', function() {
   const newMode = !isAmbisonicsMode;
   if (setAmbisonicsMode(newMode)) {
     isAmbisonicsMode = newMode; 
-    this.textContent = isAmbisonicsMode ? 'Ambisonics' : 'Binaural';
+    this.textContent = isAmbisonicsMode ? 'Output: Ambisonics' : 'Output: Binaural';
     this.style.color = isAmbisonicsMode ? 'rgb(251,21,97)' : '#5d5e5d';
   }
 });
@@ -1554,15 +1554,7 @@ function setAmbisonicsMode(isAmbisonicsMode) {
   if (isAmbisonicsMode) {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const outputChannels = audioContext.destination.maxChannelCount;
-
-    if (outputChannels < 16) {
-      showAmbisonicsModal('Ambisonics mode is only available on Chrome with an audio output device that has at least 16 channels.');
-      return false;
-    }
-    else {
-      // more than 16-channel output found; close the existing audio context before switching to ambisonics mode
-      audioContext.close();
-    }
+    audioContext.close();
   }
 
   soundObjects.forEach(sound => {
@@ -1587,24 +1579,4 @@ function setAmbisonicsMode(isAmbisonicsMode) {
     sound.mainMixer.connect(sound.audio.destination);
   });
   return true;
-}
-
-function showAmbisonicsModal(message) {
-  const modal = document.getElementById('ambisonics_modal');
-  const modalMessage = document.getElementById('modal-message');
-  const modalClose = document.getElementById('modal-close');
-
-  modalMessage.textContent = message;
-  modal.style.display = 'flex';
-
-  modalClose.onclick = () => {
-    modal.style.display = 'none';
-  };
-
-  // close modal when clicking outside the modal content
-  modal.onclick = (event) => {
-    if (event.target === modal) {
-      modal.style.display = 'none';
-    }
-  };
 }

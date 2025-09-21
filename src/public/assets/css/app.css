@@ -643,7 +643,7 @@ input[type='file'] {
 #load:hover {
   opacity: 0.8; }
 
-#ambisonics {
+#outputMode {
   position: absolute;
   top: 16px;
   left: 405px;

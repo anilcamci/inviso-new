@@ -159,9 +159,6 @@ export default class Main {
     // Main renderer instantiation
     this.renderer = new Renderer(this.scene, container);
 
-    this.playBtnSrc = document.getElementById("play-button").src;
-    this.pauseBtnSrc = document.getElementById("pause-button").src;
-
     // Components instantiation
     this.camera = new Camera(this.renderer.threeRenderer);
     this.controls = new Controls(this.camera.threeCamera, document);
@@ -455,12 +452,21 @@ export default class Main {
             self.hideTooltip('help-add');
         }
     }
+    
     document.getElementById('camera-label').onmouseenter = function() {
         self.cameraHasLabel = false;
         self.showTooltip('help-camera');
     }
     document.getElementById('camera-label').onmouseleave = function() {
         self.hideTooltip('help-camera');
+    }
+
+    document.getElementById('outputMode').onmouseenter = function() {
+        self.cameraHasLabel = false;
+        self.showTooltip('help-output');
+    }
+    document.getElementById('outputMode').onmouseleave = function() {
+        self.hideTooltip('help-output');
     }
     
 }
@@ -1212,15 +1218,11 @@ export default class Main {
   setupAudio() {
     const a = {};
     window.AudioContext = window.AudioContext || window.webkitAudioContext;
-
     a.context = new AudioContext();
     a.context.listener.setOrientation(0, 0, -1, 0, 1, 0);
     a.context.listener.setPosition(0, 0, 0);
     a.destination = a.context.createGain();
     a.destination.connect(a.context.destination);
-    a.context.destination.channelCount = a.context.destination.maxChannelCount;
-    a.context.destination.channelCountMode = "explicit";
-    a.context.destination.channelInterpretation = "discrete";
     this.audio = a;
     this.audio.context.suspend();
   }
