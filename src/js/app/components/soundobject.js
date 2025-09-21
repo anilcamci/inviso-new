@@ -551,11 +551,14 @@ export default class SoundObject {
           sound.volume = context.createGain();
           sound.volume.connect(sound.analyser);
           sound.volume.connect(sound.panner);
+          // Create the encoder anyways for when the user might switch to that mode.
+          sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
+
           // Default to Binaural Mode
           if(!isAmbisonicsMode){
             sound.panner.connect(mainMixer);
           }else{ // Ambisonics Mode
-            sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
+            
             sound.panner.connect(sound.encoder.in);
             sound.encoder.out.connect(mainMixer);
           }
@@ -1553,7 +1556,7 @@ function setAmbisonicsMode(isAmbisonicsMode) {
     const outputChannels = audioContext.destination.maxChannelCount;
 
     if (outputChannels < 16) {
-      showAmbisonicsModal('Ambisonics mode is only available when your audio output device has at least 16 channels.');
+      showAmbisonicsModal('Ambisonics mode is only available on Chrome with an audio output device that has at least 16 channels.');
       return false;
     }
     else {
@@ -1570,7 +1573,6 @@ function setAmbisonicsMode(isAmbisonicsMode) {
 
     if (isAmbisonicsMode) {
       // switch to ambisonics mode
-      sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
       sound.volume.connect(sound.analyser);
       sound.volume.connect(sound.panner);
       sound.panner.connect(sound.encoder.in);
