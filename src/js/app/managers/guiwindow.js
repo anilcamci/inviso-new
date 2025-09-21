@@ -2118,6 +2118,7 @@ addSwipeEvents(div, title, objectType) {
 	  title.appendChild(p);
 	  div.appendChild(title);
 	  this.container.insertBefore(div, siblingAfter || null);
+	  
 	  if (objectType == "sphere") {
 		// add three horizontal parameters for editing: Zoom, Duplicate, Delete
 		this.addParameter({
@@ -2148,9 +2149,8 @@ addSwipeEvents(div, title, objectType) {
 		}, title);
 	  }
 
-		if (objectType == "zone") {
-		// add three horizontal parameters for editing: Duplicate, Delete
-
+	  if (objectType == "zone") {
+		// add two horizontal parameters for editing: Duplicate, Delete
 		this.addParameter({
 			value: 'Duplicate',
 			cls: 'top-gui left-panel-zone',
@@ -2168,8 +2168,6 @@ addSwipeEvents(div, title, objectType) {
 			  callback: this.deleteObject.bind(this)
 			}]
 		}, title);
-
-
 	  }
 
 	// Object Type was previously addEditElement boolean, which was

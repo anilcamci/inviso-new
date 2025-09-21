@@ -158,6 +158,8 @@ export default class Main {
 
     // Main renderer instantiation
     this.renderer = new Renderer(this.scene, container);
+    this.playBtnSrc = document.getElementById("play-button").src;
+    this.pauseBtnSrc = document.getElementById("pause-button").src;
 
     // Components instantiation
     this.camera = new Camera(this.renderer.threeRenderer);
@@ -2160,7 +2162,6 @@ export default class Main {
         this._placeObject = this.placeObject.bind(this, originalObj);
         document.addEventListener('mousemove', this._moveObject, false);
         document.addEventListener('mousedown', this._placeObject, false);
-        this.soundZones.push(newObj);
       }
     }
   }

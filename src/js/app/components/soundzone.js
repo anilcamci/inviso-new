@@ -456,7 +456,6 @@ export default class SoundZone {
       this.volume = volume;
       if (this.sound && this.sound.source) {
         this.sound.source.volume.gain.value = volume;
-        // this.sound.source.volume = volume;
         this.sound.volume.gain.value = volume;
       }
 
@@ -465,8 +464,6 @@ export default class SoundZone {
         this.stopSound();
       }
     }
-    //this.app.soundZones.push(object);
-
   }
 
   copySound(file, volume, isPlaying = true, setVolume = true){
