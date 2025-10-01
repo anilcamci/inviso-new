@@ -694,27 +694,27 @@ export default class GUIWindow {
 			if (object.trajectory) {
 
 				let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
-					
 				// clamp to [0, 1]
 				position = Math.max(0, Math.min(1, position));
-			
 				object.trajectoryClock = position;
 				
 				// update the object position on the trajectory
 				let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
 				object.setPosition(pointOnTrajectory);
 				
+				// Fix: pause movement by setting speed to 0
+				// only store speed once
+				if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
+					object.oldTrajectorySpeed = object.movementSpeed;
+					object.movementSpeed = 0;
+					object.calculateMovementSpeed();
+				}
+
 				if (object.roomCode) {
 						object.dbRef.child('objects').child(object.containerObject.name).update({
 								trajectoryPosition: position,
 								position: pointOnTrajectory
 						});
-				}
-
-				if (object.movementSpeed != 0 || Number.isInteger(dx)) {
-						object.oldTrajectorySpeed = object.movementSpeed;
-						object.calculateMovementSpeed();
-						object.updateSpeed(object.oldTrajectorySpeed);
 				}
 			}
 		}
@@ -1891,7 +1891,11 @@ useAudioInput(deviceId) {
 			// the promise can take multiple seconds to resolve, so we need to check if the object is still in live input mode
 			if (obj.isLiveInput) {
 				obj.stream = stream;
-            	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// Debug:
+				// Using channel param to select audio channel
+				let numChannels = stream.getAudioTracks()[0].getSettings().channelCount || 2;
+				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
+        //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
 			}
             resolve(); // Resolve the Promise
         })

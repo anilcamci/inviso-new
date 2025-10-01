@@ -56,5 +56,8 @@ export default class Controls {
     this.threeControls.enableDamping = Config.controls.enableDamping;
     this.threeControls.enableZoom = Config.controls.enableZoom;
     this.threeControls.dampingFactor = Config.controls.dampingFactor;
+
+    // Fix: Disable scene control through keyboard
+    this.threeControls.enableKeys = false;
   }
 }
