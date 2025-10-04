@@ -7,8 +7,8 @@ import Helpers from '../../utils/helpers';
 import Action from '../model/action';
 import { createAudioMeter, volumeAudioProcess } from '../helpers/volume-meter';
 
-let isAmbisonicMode = false;
-const soundObjects = [];
+// let isAmbisonicMode = false;
+//const soundObjects = [];
 
 export default class SoundObject {
   constructor(main, copyObject = false) {
@@ -27,7 +27,7 @@ export default class SoundObject {
     this.isMuted = main.isMuted;
     this.app = main;
     this.userSetPlay = this.app.isPlaying;
-    this.main = main;
+    this.app = main;
     this.finishUploadingSound = true;
 
     this.trajectory = null;
@@ -485,6 +485,8 @@ export default class SoundObject {
   loadSound(file, audio, mute, object, soundIn = null, copy=false) {
     const context = audio.context;
     const mainMixer = context.createGain();
+    const isAmbisonicMode = this.app.isAmbisonicMode;
+    const sphereAndConeSounds = this.app.sphereAndConeSounds;
     let reader = new FileReader();
     var sound = {};
 
@@ -553,18 +555,17 @@ export default class SoundObject {
           sound.volume.connect(sound.panner);
           // Create the encoder anyways for when the user might switch to that mode.
           sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
-
+          
           // Default to Binaural Mode
           if(!isAmbisonicMode){
             sound.panner.connect(mainMixer);
           }else{ // Ambisonic Mode
-            
             sound.panner.connect(sound.encoder.in);
             sound.encoder.out.connect(mainMixer);
           }
           mainMixer.connect(audio.destination);
           mainMixer.gain.value = mute ? 0 : 1;
-          soundObjects.push(sound);
+          sphereAndConeSounds.push(sound);
 
           sound.state = {}
           sound.state.startedAt = Date.now();
@@ -1538,45 +1539,4 @@ export default class SoundObject {
   
     }
   }
-}
-
-// event handler for switching to ambisonic mode
-document.getElementById('outputMode').addEventListener('click', function() {
-  const newMode = !isAmbisonicMode;
-  if (setAmbisonicMode(newMode)) {
-    isAmbisonicMode = newMode; 
-    this.textContent = isAmbisonicMode ? 'Output: Ambisonic' : 'Output: Binaural';
-    this.style.color = isAmbisonicMode ? 'rgb(251,21,97)' : '#5d5e5d';
-  }
-});
-
-function setAmbisonicMode(isAmbisonicMode) {
-  if (isAmbisonicMode) {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const outputChannels = audioContext.destination.maxChannelCount;
-    audioContext.close();
-  }
-
-  soundObjects.forEach(sound => {
-    // disconnect existing connections
-    sound.volume.disconnect();
-    sound.panner.disconnect();
-    sound.mainMixer.disconnect();
-
-    if (isAmbisonicMode) {
-      // switch to ambisonic mode
-      sound.volume.connect(sound.analyser);
-      sound.volume.connect(sound.panner);
-      sound.panner.connect(sound.encoder.in);
-      sound.encoder.out.connect(sound.mainMixer);
-      
-    } else {
-      // switch back to binaural mode
-      sound.volume.connect(sound.analyser);
-      sound.volume.connect(sound.panner);
-      sound.panner.connect(sound.mainMixer);
-    }
-    sound.mainMixer.connect(sound.audio.destination);
-  });
-  return true;
 }

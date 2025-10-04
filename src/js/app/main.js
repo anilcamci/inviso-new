@@ -56,8 +56,9 @@ export default class Main {
     OBJLoader(THREE);
     this.roomCode = null;
     this.overrideTriangulate();
-    this.audioFiles = [];
     this.setupAudio();
+    this.audioFiles = [];
+    
     this.mouse = new THREE.Vector3();
     this.nonScaledMouse = new THREE.Vector3();
     this.ray = new THREE.Raycaster();
@@ -72,6 +73,9 @@ export default class Main {
     this.isAllowMouseDrag = false;
     this.isAddingSound = false;
     this.trajectoryCache = {};
+    this.isAmbisonicMode = false;
+    this.sphereAndConeSounds = [];
+    this.zoneSounds = [];
 
     this.activeObject = null;
     this.undoableActionStack = [];
@@ -326,6 +330,56 @@ export default class Main {
       function handleFiles() {
         self.import(this.files[0]);
       }
+    }
+
+    document.getElementById('outputMode').onclick = function() {
+      
+      const newMode = !self.isAmbisonicMode;
+      if (setAmbisonicMode(newMode)) {
+        self.isAmbisonicMode = newMode; 
+        this.textContent = self.isAmbisonicMode ? 'Output: Ambisonic' : 'Output: Binaural';
+        this.style.color = self.isAmbisonicMode ? 'rgb(251,21,97)' : '#5d5e5d';
+      }
+    }
+
+    function setAmbisonicMode(isAmbisonicMode) {
+      self.sphereAndConeSounds.forEach(sound => {
+        // disconnect existing connections
+        sound.volume.disconnect();
+        sound.panner.disconnect();
+        sound.mainMixer.disconnect();
+
+        if (isAmbisonicMode) {
+          // switch to ambisonic mode
+          sound.volume.connect(sound.analyser);
+          sound.volume.connect(sound.panner);
+          sound.panner.connect(sound.encoder.in);
+          sound.encoder.out.connect(sound.mainMixer);
+          sound.mainMixer.connect(sound.audio.destination);
+        } else {
+          // switch back to binaural mode
+          sound.volume.connect(sound.analyser);
+          sound.volume.connect(sound.panner);
+          sound.panner.connect(sound.mainMixer);
+          sound.mainMixer.connect(sound.audio.destination);
+        }
+      });
+
+      self.zoneSounds.forEach(sound => {
+        sound.mainMixer.disconnect();
+        if (isAmbisonicMode) {
+          // switch to ambisonic mode: Zone merged to Channel W of the B-format signal
+          const splitter = self.audio.context.createChannelSplitter(2);
+          const merger = self.audio.context.createChannelMerger(2);
+          sound.mainMixer.connect(splitter);
+          splitter.connect(merger, 0, 0);
+          merger.connect(self.audio.destination);
+        } else {
+          // switch back to binaural mode
+          sound.mainMixer.connect(self.audio.destination);
+        }
+      });
+      return true;
     }
 
     // document.getElementById('copy-button').onclick = function() {
@@ -1225,6 +1279,10 @@ export default class Main {
     a.context.listener.setPosition(0, 0, 0);
     a.destination = a.context.createGain();
     a.destination.connect(a.context.destination);
+    if(a.context.destination.maxChannelCount > 16) a.context.destination.channelCount = 16;
+    else a.context.destination.channelCount = a.context.destination.maxChannelCount;
+    a.context.destination.channelCountMode = "explicit";
+    a.context.destination.channelInterpretation = "discrete";
     this.audio = a;
     this.audio.context.suspend();
   }

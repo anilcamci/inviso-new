@@ -187,7 +187,9 @@ export default class SoundZone {
 
   loadSound(file, audio, mute, copy = false) {
     const context = audio.context;
+    const zoneSounds = this.app.zoneSounds;
     let reader = new FileReader();
+    const isAmbisonicMode = this.app.isAmbisonicMode;
 
     this.filename = file.name;
     this.file = file;
@@ -200,42 +202,57 @@ export default class SoundZone {
     }
     let promise = new Promise(function(resolve, reject) {
         reader.onload = (ev) => {
-        context.decodeAudioData(ev.target.result, function(decodedData) {
+          context.decodeAudioData(ev.target.result, function(decodedData) {
             that.clear();
             if(that.sound == null){
-                that.sound = {};
+              that.sound = {};
             
-            that.sound.state = {}
-            that.sound.state.startedAt = Date.now();
-            that.sound.state.pausedAt = 0;
-            that.sound.state.currentTime = 0;
-            that.sound.state.isAudioPaused = false;
-            that.sound.state.duration = 0;
+              that.sound.state = {}
+              that.sound.state.startedAt = Date.now();
+              that.sound.state.pausedAt = 0;
+              that.sound.state.currentTime = 0;
+              that.sound.state.isAudioPaused = false;
+              that.sound.state.duration = 0;
 
-            that.sound.state.clear = () => {
-                that.sound.state.startedAt = that.sound.state.pausedAt = that.sound.state.currentTime = that.sound.state.duration = 0;
-                that.sound.state.isAudioPaused = true;
-            }
+              that.sound.state.clear = () => {
+                  that.sound.state.startedAt = that.sound.state.pausedAt = that.sound.state.currentTime = that.sound.state.duration = 0;
+                  that.sound.state.isAudioPaused = true;
+              }
 
+              that.sound.name = file.name;
+              that.sound.source = context.createBufferSource();
+              that.sound.source.buffer = decodedData;
+              that.mainMixer = context.createGain();
+              that.sound.mainMixer = that.mainMixer;
+              that.sound.volume = context.createGain();
+              that.sound.source.volume = context.createGain();
+              that.sound.panner = context.createPanner();
+              that.sound.source.connect(that.sound.source.volume);
+              that.sound.source.volume.connect(that.sound.volume);
+              that.sound.volume.connect(that.sound.panner);
+              that.sound.panner.connect(that.mainMixer);
 
-            that.sound.name = file.name;
-            that.sound.source = context.createBufferSource();
-            that.sound.source.buffer = decodedData;
-            that.mainMixer = context.createGain();
-            that.sound.volume = context.createGain();
-            that.sound.source.volume = context.createGain();
-            that.sound.source.connect(that.sound.source.volume);
-            that.sound.source.volume.connect(that.sound.volume);
-            that.sound.volume.connect(that.mainMixer);
-            that.mainMixer.connect(audio.destination);
-            that.mainMixer.gain.value = mute ? 0 : 1;
-            that.sound.volume.gain.value = that.volume;
-            that.sound.buffer = decodedData;
-            that.sound.state.duration = that.sound.buffer.duration;
-            that.loaded = true;
-            resolve(that.sound);
-        };
-        });
+              if (isAmbisonicMode) {
+                // Ambisonic merges zone sound to the Channel W (1) of the B-format signal
+                const splitter = context.createChannelSplitter(2);
+                const merger = context.createChannelMerger(2);
+                that.mainMixer.connect(splitter);
+                splitter.connect(merger, 0, 0);
+                merger.connect(audio.destination);
+              } else {
+                // Binaural mode connects zone sound to stereo output
+                that.mainMixer.connect(audio.destination);
+              }
+
+              that.mainMixer.gain.value = mute ? 0 : 1;
+              that.sound.volume.gain.value = that.volume;
+              that.sound.buffer = decodedData;
+              that.sound.state.duration = that.sound.buffer.duration;
+              that.loaded = true;
+              resolve(that.sound);
+              zoneSounds.push(that.sound);
+            };
+          });
         };
         reader.readAsArrayBuffer(file);
     });
