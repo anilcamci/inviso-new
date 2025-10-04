@@ -447,22 +447,28 @@ input[type='file'] {
 
 #SoundSearch {
   position: absolute;
-  bottom: 10px;
-  left: 190px;
-  width: 240px;
+  bottom: 55px;
+  left: 20px;
+  width: 250px;
   background-color: rgba(255, 255, 255, 0.6);
   font-family: roboto, 'helvetica neue', helvetica, arial, sans-serif;
-  font-size: 12px;
+  font-size: 10px;
   line-height: 15px;
   padding: 10px;
   padding-bottom: 0px;
-  box-shadow: 0 0 5px #aaa; }
+  box-shadow: 0 0 5px #aaa;
+  border-radius: 10px;
+}
 
 #search-input {
   width: 100%;
   display: block;
   margin-bottom: 10px;
   box-sizing: border-box;
+  border-radius: 5px;
+  font-size: 15px;
+  border-style: solid;
+  border-color:#dcdbdd;
   -moz-box-sizing: border-box;
   -webkit-box-sizing: border-box; }
 
@@ -482,9 +488,9 @@ input[type='file'] {
 
 #download-link {
   /* margin: 5px; */
-  font-size: 12px;
+  font-size: 15px;
   cursor: pointer;
-  color: #1177ff;
+  color: #313131;
   text-decoration: underline; }
 
 #search-result {
