@@ -230,8 +230,8 @@ export default class SoundZone {
               that.sound.source.connect(that.sound.source.volume);
               that.sound.source.volume.connect(that.sound.volume);
               that.sound.volume.connect(that.sound.panner);
+              that.sound.volume.connect(that.mainMixer)
               that.sound.panner.connect(that.mainMixer);
-
               if (isAmbisonicMode) {
                 // Ambisonic merges zone sound to the Channel W (1) of the B-format signal
                 const splitter = context.createChannelSplitter(2);
