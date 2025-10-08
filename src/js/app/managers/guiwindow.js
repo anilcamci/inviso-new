@@ -249,10 +249,11 @@ export default class GUIWindow {
 		}
 	  }
 
-	  function changeMicrophoneChannel (dx) {
-		object.microphoneChannel = dx+1;
-		object.isLiveInput = true;
-	  }
+		// Debug: Input of channel should be val not delta for dragging
+	  // function changeMicrophoneChannel (dx) {
+		// object.microphoneChannel = dx+1;
+		// object.isLiveInput = true;
+	  // }
 
 	  this.addParameter({
 		  property: 'File | Input',
@@ -285,7 +286,8 @@ export default class GUIWindow {
 		value: this.microphoneChannel,
 		type: 'int',
 		cls: 'microphoneChannel',
-		bind: changeMicrophoneChannel
+		// Debug: remove dragging
+		// bind: changeMicrophoneChannel
 	},elem);
 		
 		// Fix: only add channel param if there is live input
@@ -1893,7 +1895,7 @@ useAudioInput(deviceId) {
 				obj.stream = stream;
 				// Debug:
 				// Using channel param to select audio channel
-				let numChannels = stream.getAudioTracks()[0].getSettings().channelCount || 2;
+				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
         //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
 			}
@@ -2472,6 +2474,23 @@ addSwipeEvents(div, title, objectType) {
 		input.min = 1;
 		input.max = 2;
 		input.style.width = '59px';
+		// Debug: add event listener for channel input
+		var self = this; // curr guiwindow obj
+		input.addEventListener('change', function(e) {
+			let value = parseInt(e.target.value);
+			if (value >= 1 && value <= 2) {
+					self.obj.microphoneChannel = value;
+					// check if live input is selected
+					if (self.obj.liveInputDeviceId && self.obj.liveInputDeviceId !== 'None') {
+						// reconnect audio
+						self.useAudioInput(self.obj.liveInputDeviceId);
+					}	
+			} else {
+					// if input not valid, go back to original channel val
+					e.target.value = self.obj.microphoneChannel;
+			}
+	});
+
 		val.innerHTML = '';
 		val.appendChild(input);
 		div.id = 'microphoneChannel';
