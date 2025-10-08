@@ -249,10 +249,11 @@ export default class GUIWindow {
 		}
 	  }
 
-	  function changeMicrophoneChannel (dx) {
-		object.microphoneChannel = dx+1;
-		object.isLiveInput = true;
-	  }
+		// Debug: Input of channel should be val not delta for dragging
+	  // function changeMicrophoneChannel (dx) {
+		// object.microphoneChannel = dx+1;
+		// object.isLiveInput = true;
+	  // }
 
 	  this.addParameter({
 		  property: 'File | Input',
@@ -279,14 +280,24 @@ export default class GUIWindow {
 	  if (object.isLiveInput) {
         this.getLiveInputDevices();
       }
-
-	  this.addParameter({
+		
+		this.addParameter({
 		property: 'Channel',
 		value: this.microphoneChannel,
 		type: 'int',
 		cls: 'microphoneChannel',
-		bind: changeMicrophoneChannel
+		// Debug: remove dragging
+		// bind: changeMicrophoneChannel
 	},elem);
+		
+		// Fix: only add channel param if there is live input
+		if (!object.isLiveInput) {
+			let channelElement = document.getElementById('microphoneChannel');
+			// hide if not used
+			if (channelElement) {
+					channelElement.style.display = 'none';
+			}
+		}
 
 	  this.addParameter({
 		  property: 'Volume',
@@ -679,57 +690,87 @@ export default class GUIWindow {
 	elem.id = 'trajectory';
     let dbRef = this.dbRef;
 
-    function changePositionOnTrajectory(dx) {
-		// get the value of the number -  if it's been keyed to 0 or 1, handle those cases even more specially i guess
-		var inputElement = document.querySelector('#trajectory .position .value');
-		if (inputElement.value == 0 ) {
-			dx = 0.001;
-		}
-		else if (inputElement.value == 1 ) {
-			dx = 0.999;
-		}
-        if (object.trajectory) {
-			let position;
-			if (Number.isInteger(dx)) {
-				position = Math.max(Math.min((parseFloat(object.trajectoryClock) + parseFloat(dx/100)), 1), 0);
+		// Fix: 
+		function changePositionOnTrajectory(dx) {
+			
+			if (object.trajectory) {
+
+				let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
+				// clamp to [0, 1]
+				position = Math.max(0, Math.min(1, position));
 				object.trajectoryClock = position;
-			} else {
-				position = dx;
-			}
-          // temporarily set speed to 0 while changing and restore back afterwards
-          if (object.roomCode) {
-            object.dbRef.child('objects').child(object.containerObject.name).update({
-                trajectoryPosition: position
-            });
-          }
-          if (object.movementSpeed != 0 || Number.isInteger(dx) ) {
-			object.oldTrajectorySpeed = object.movementSpeed;
-			object.calculateMovementSpeed();
-			object.updateSpeed(object.oldTrajectorySpeed);
-			if (inputElement.value == 0 ) {
-				object.trajectoryClock = 0.01;
+				
+				// update the object position on the trajectory
+				let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
+				object.setPosition(pointOnTrajectory);
+				
+				// Fix: pause movement by setting speed to 0
+				// only store speed once
+				if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
+					object.oldTrajectorySpeed = object.movementSpeed;
+					object.movementSpeed = 0;
+					object.calculateMovementSpeed();
+				}
 
+				if (object.roomCode) {
+						object.dbRef.child('objects').child(object.containerObject.name).update({
+								trajectoryPosition: position,
+								position: pointOnTrajectory
+						});
+				}
 			}
-			else if (inputElement.value == 1 ) {
-				object.trajectoryClock = 0.99;
-			}
-          }
-		  else {
-			// handle setting the position manually if speed is set to 0
-			var inputElement = document.querySelector('#trajectory .position .value');
-			if (inputElement.value == 0 ) {
-				object.trajectoryClock = 0.01;
+		}
+    // function changePositionOnTrajectory(dx) {
+		// // get the value of the number -  if it's been keyed to 0 or 1, handle those cases even more specially i guess
+		// var inputElement = document.querySelector('#trajectory .position .value');
+		// if (inputElement.value == 0 ) {
+		// 	dx = 0.001;
+		// }
+		// else if (inputElement.value == 1 ) {
+		// 	dx = 0.999;
+		// }
+    //     if (object.trajectory) {
+		// 	let position;
+		// 	if (Number.isInteger(dx)) {
+		// 		position = Math.max(Math.min((parseFloat(object.trajectoryClock) + parseFloat(dx/100)), 1), 0);
+		// 		object.trajectoryClock = position;
+		// 	} else {
+		// 		position = dx;
+		// 	}
+    //       // temporarily set speed to 0 while changing and restore back afterwards
+    //       if (object.roomCode) {
+    //         object.dbRef.child('objects').child(object.containerObject.name).update({
+    //             trajectoryPosition: position
+    //         });
+    //       }
+    //       if (object.movementSpeed != 0 || Number.isInteger(dx) ) {
+		// 	object.oldTrajectorySpeed = object.movementSpeed;
+		// 	object.calculateMovementSpeed();
+		// 	object.updateSpeed(object.oldTrajectorySpeed);
+		// 	if (inputElement.value == 0 ) {
+		// 		object.trajectoryClock = 0.01;
 
-			}
-			else if (inputElement.value == 1 ) {
-				object.trajectoryClock = 0.99;
-			}
-			else {
-				object.trajectoryClock = inputElement.value;
-			}
-		  }
-        }
-    }
+		// 	}
+		// 	else if (inputElement.value == 1 ) {
+		// 		object.trajectoryClock = 0.99;
+		// 	}
+    //       }
+		//   else {
+		// 	// handle setting the position manually if speed is set to 0
+		// 	var inputElement = document.querySelector('#trajectory .position .value');
+		// 	if (inputElement.value == 0 ) {
+		// 		object.trajectoryClock = 0.01;
+
+		// 	}
+		// 	else if (inputElement.value == 1 ) {
+		// 		object.trajectoryClock = 0.99;
+		// 	}
+		// 	else {
+		// 		object.trajectoryClock = inputElement.value;
+		// 	}
+		//   }
+    //     }
+    // }
 
 	let deleteTrajectory = this.addParameter({
 		value: 'Delete',
@@ -755,7 +796,11 @@ export default class GUIWindow {
 				});
 			  }
 			}
-			object.trajectoryClock = Config.soundObject.defaultMovementSpeed;
+
+			// Fix: After delete, reset to default speed and position
+			object.movementSpeed = Config.soundObject.defaultMovementSpeed;
+			object.trajectoryClock = Config.soundObject.defaultTrajectoryClock;
+
 			elem.parentNode.removeChild(elem);
 			this.addTrajectoryDialog();
 		  }.bind(this)
@@ -1112,20 +1157,37 @@ export default class GUIWindow {
 	  // update sound volume
 	  var volume = this.container.querySelector('.volume .value');
 	  this.replaceTextContent(volume, object.omniSphere.sound && object.omniSphere.sound.volume ? object.omniSphere.sound.volume.gain.value : 'N/A');
-	  try {
-		var channel = this.container.querySelector('.microphoneChannel .channelValue');
-		if (document.activeElement !== channel) {
-		  channel.value = object.microphoneChannel;
+
+		// Same fix as init object for updating on the same object
+		try {
+			if(!object.isLiveInput) {
+				this.container.querySelector('#microphoneChannel').style.display = "none";
+			}else {
+				this.container.querySelector('#microphoneChannel').style.display = "block";
+
+				// only update when there's live input
+				var channel = this.container.querySelector('.microphoneChannel .channelValue');
+				if (channel && document.activeElement !== channel) {
+						channel.value = object.microphoneChannel; 
+				}
+			}
+		} catch (error) {
+			console.error('Error setting channel value:', error);
 		}
-		if ( !object.isLiveInput ) {
-			this.container.querySelector('#microphoneChannel').style.display = "none";
-		}
-		else {
-			this.container.querySelector('#microphoneChannel').style.display = "block";
-		}
-	  } catch (error) {
-		console.error('Error setting channel value:', error);
-	  }
+		// try {
+		// var channel = this.container.querySelector('.microphoneChannel .channelValue');
+		// if (document.activeElement !== channel) {
+		//   channel.value = object.microphoneChannel;
+		// }
+		// if ( !object.isLiveInput ) {
+		// 	this.container.querySelector('#microphoneChannel').style.display = "none";
+		// }
+		// else {
+		// 	this.container.querySelector('#microphoneChannel').style.display = "block";
+		// }
+	  // } catch (error) {
+		// console.error('Error setting channel value:', error);
+	  // }
 
 	  // update position parameters
 	  var pos = object.containerObject.position;
@@ -1831,7 +1893,11 @@ useAudioInput(deviceId) {
 			// the promise can take multiple seconds to resolve, so we need to check if the object is still in live input mode
 			if (obj.isLiveInput) {
 				obj.stream = stream;
-            	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// Debug:
+				// Using channel param to select audio channel
+				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
+				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
+        //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
 			}
             resolve(); // Resolve the Promise
         })
@@ -2035,6 +2101,11 @@ useAudioInput(deviceId) {
 	  else if (e.target.parentNode.parentNode.className === "scale") {
 		factor = 50;
 	  }
+
+		// Fix: change factor for position for 0, 1 case
+		else if (e.target.parentNode.parentNode.className === "position") {
+			factor = 100;  
+		}
 	  const dx = (inputValue - e.target.defaultValue) * factor;
 
 	  // Apply change
@@ -2403,6 +2474,23 @@ addSwipeEvents(div, title, objectType) {
 		input.min = 1;
 		input.max = 2;
 		input.style.width = '59px';
+		// Debug: add event listener for channel input
+		var self = this; // curr guiwindow obj
+		input.addEventListener('change', function(e) {
+			let value = parseInt(e.target.value);
+			if (value >= 1 && value <= 2) {
+					self.obj.microphoneChannel = value;
+					// check if live input is selected
+					if (self.obj.liveInputDeviceId && self.obj.liveInputDeviceId !== 'None') {
+						// reconnect audio
+						self.useAudioInput(self.obj.liveInputDeviceId);
+					}	
+			} else {
+					// if input not valid, go back to original channel val
+					e.target.value = self.obj.microphoneChannel;
+			}
+	});
+
 		val.innerHTML = '';
 		val.appendChild(input);
 		div.id = 'microphoneChannel';
