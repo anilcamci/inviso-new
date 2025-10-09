@@ -283,7 +283,8 @@ export default class GUIWindow {
 		
 		this.addParameter({
 		property: 'Channel',
-		value: this.microphoneChannel,
+		// Debug:
+		value: object.microphoneChannel,
 		type: 'int',
 		cls: 'microphoneChannel',
 		// Debug: remove dragging
@@ -2039,6 +2040,11 @@ useAudioInput(deviceId) {
   }
 
   startDragging(e) {
+		// Debug: prevent dragging if channel input
+		if (e.target.classList.contains('channelValue') || 
+        e.target.closest('#microphoneChannel')) {
+        return;
+    }
 	this.app.controls.disable();
 
 	const l = this.listeners.find(l => l.elem === e.target || l.elem === e.target.parentNode);
@@ -2468,17 +2474,31 @@ addSwipeEvents(div, title, objectType) {
 		input.type = 'number';
 		input.className = 'channelValue';
 		input.size = '8';
-		input.defaultValue = p.value;
+		// Debug: change to this.val
+		input.value = p.value;
 		input.disabled = false;
 		input.style.color = "#5d5e5d";
 		input.min = 1;
 		input.max = 2;
 		input.style.width = '59px';
+			
+		// Debug: remove drag handling from parent 
+		val.style.cursor = 'default';
+		val.onmousedown = null;
+
+		// prevent drag on input
+		input.addEventListener('mousedown', function(e) {
+			e.stopPropagation();
+		});
+		input.addEventListener('click', function(e) {
+			e.stopPropagation();
+		});
+
 		// Debug: add event listener for channel input
 		var self = this; // curr guiwindow obj
 		input.addEventListener('change', function(e) {
 			let value = parseInt(e.target.value);
-			if (value >= 1 && value <= 2) {
+			if (value === 1 || value === 2) {
 					self.obj.microphoneChannel = value;
 					// check if live input is selected
 					if (self.obj.liveInputDeviceId && self.obj.liveInputDeviceId !== 'None') {
@@ -2489,7 +2509,17 @@ addSwipeEvents(div, title, objectType) {
 					// if input not valid, go back to original channel val
 					e.target.value = self.obj.microphoneChannel;
 			}
-	});
+		});
+
+		// Debug: allow keyboard input
+		input.addEventListener('keydown', function(e) {
+			e.stopPropagation();
+			if(e.key === '1' || e.key === '2' || e.key === 'Backspace' || e.key === 'Delete' ||
+				e.key === 'Enter' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+			} else {
+				e.preventDefault();
+			}
+		});
 
 		val.innerHTML = '';
 		val.appendChild(input);
