@@ -836,8 +836,9 @@ export default class GUIWindow {
         type: 'number',
         cls: 'position',
         bind: changePositionOnTrajectory,
-        events: [{type: 'mouseup', callback: this.restoreMovementSpeed.bind(this, object)},
-        {type: 'click', callback: this.restoreMovementSpeed.bind(this, object)}]
+				// debug: not trigger by click event
+        // events: [{type: 'mouseup', callback: this.restoreMovementSpeed.bind(this, object)},
+        // {type: 'click', callback: this.restoreMovementSpeed.bind(this, object)}]
     }, elem);
 
 	return elem;
@@ -2067,6 +2068,18 @@ useAudioInput(deviceId) {
 	  return;
 	}
 
+	// check if dragging 
+	if(this.dragEvent.editing.parentNode && this.dragEvent.editing.parentNode.parentNode && 
+			this.dragEvent.editing.parentNode.parentNode.className === "position"){
+			// restore mvmt speed 
+			if(this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed){
+				this.obj.movementSpeed = this.obj.oldTrajectorySpeed;
+				this.obj.calculateMovementSpeed();
+				this.obj.updateSpeed(this.obj.movementSpeed);
+				this.obj.oldTrajectorySpeed = null;
+			}
+	}
+
 	this.dragEvent = {};
 	this.app.controls.enable();
   }
@@ -2117,6 +2130,16 @@ useAudioInput(deviceId) {
 	  if (l && l.callback) {
 		this.typeEvent.call = l.callback;
 		this.typeEvent.call(dx);
+
+		// add restore mvmt speed when typing input
+		if (e.target.parentNode.parentNode.className === "position" && 
+			this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed) {
+			this.obj.movementSpeed = this.obj.oldTrajectorySpeed;
+			this.obj.calculateMovementSpeed();
+			this.obj.updateSpeed(this.obj.movementSpeed);
+			this.obj.oldTrajectorySpeed = null;
+		}
+		
 		this.display();
 	  }
 	}
