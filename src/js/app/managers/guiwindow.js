@@ -249,7 +249,6 @@ export default class GUIWindow {
 		}
 	  }
 
-		// Debug: Input of channel should be val not delta for dragging
 	  // function changeMicrophoneChannel (dx) {
 		// object.microphoneChannel = dx+1;
 		// object.isLiveInput = true;
@@ -283,10 +282,9 @@ export default class GUIWindow {
 		
 		this.addParameter({
 		property: 'Channel',
-		value: this.microphoneChannel,
+		value: object.microphoneChannel,
 		type: 'int',
 		cls: 'microphoneChannel',
-		// Debug: remove dragging
 		// bind: changeMicrophoneChannel
 	},elem);
 		
@@ -838,8 +836,9 @@ export default class GUIWindow {
         type: 'number',
         cls: 'position',
         bind: changePositionOnTrajectory,
-        events: [{type: 'mouseup', callback: this.restoreMovementSpeed.bind(this, object)},
-        {type: 'click', callback: this.restoreMovementSpeed.bind(this, object)}]
+				// debug: not trigger by click event
+        // events: [{type: 'mouseup', callback: this.restoreMovementSpeed.bind(this, object)},
+        // {type: 'click', callback: this.restoreMovementSpeed.bind(this, object)}]
     }, elem);
 
 	return elem;
@@ -1872,7 +1871,11 @@ useAudioInput(deviceId) {
     if (isSafari) {
         constraints = { 
             'audio': {
-                deviceId: deviceId
+							// Debug: disable audio effect for safari
+							deviceId: deviceId,
+							autoGainControl: false,
+							noiseSuppression: false,
+							echoCancellation: false,
             }
         };
     } else {
@@ -1893,7 +1896,6 @@ useAudioInput(deviceId) {
 			// the promise can take multiple seconds to resolve, so we need to check if the object is still in live input mode
 			if (obj.isLiveInput) {
 				obj.stream = stream;
-				// Debug:
 				// Using channel param to select audio channel
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
@@ -2039,6 +2041,10 @@ useAudioInput(deviceId) {
   }
 
   startDragging(e) {
+		if (e.target.classList.contains('channelValue') || 
+        e.target.closest('#microphoneChannel')) {
+        return;
+    }
 	this.app.controls.disable();
 
 	const l = this.listeners.find(l => l.elem === e.target || l.elem === e.target.parentNode);
@@ -2060,6 +2066,18 @@ useAudioInput(deviceId) {
   stopDragging(e) {
 	if (!this.dragEvent.editing) {
 	  return;
+	}
+
+	// check if dragging 
+	if(this.dragEvent.editing.parentNode && this.dragEvent.editing.parentNode.parentNode && 
+			this.dragEvent.editing.parentNode.parentNode.className === "position"){
+			// restore mvmt speed 
+			if(this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed){
+				this.obj.movementSpeed = this.obj.oldTrajectorySpeed;
+				this.obj.calculateMovementSpeed();
+				this.obj.updateSpeed(this.obj.movementSpeed);
+				this.obj.oldTrajectorySpeed = null;
+			}
 	}
 
 	this.dragEvent = {};
@@ -2112,6 +2130,16 @@ useAudioInput(deviceId) {
 	  if (l && l.callback) {
 		this.typeEvent.call = l.callback;
 		this.typeEvent.call(dx);
+
+		// add restore mvmt speed when typing input
+		if (e.target.parentNode.parentNode.className === "position" && 
+			this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed) {
+			this.obj.movementSpeed = this.obj.oldTrajectorySpeed;
+			this.obj.calculateMovementSpeed();
+			this.obj.updateSpeed(this.obj.movementSpeed);
+			this.obj.oldTrajectorySpeed = null;
+		}
+		
 		this.display();
 	  }
 	}
@@ -2468,17 +2496,30 @@ addSwipeEvents(div, title, objectType) {
 		input.type = 'number';
 		input.className = 'channelValue';
 		input.size = '8';
-		input.defaultValue = p.value;
+		input.value = p.value;
 		input.disabled = false;
 		input.style.color = "#5d5e5d";
 		input.min = 1;
 		input.max = 2;
 		input.style.width = '59px';
+			
+		// remove drag handling from parent 
+		val.style.cursor = 'default';
+		val.onmousedown = null;
+
+		// prevent drag on input
+		input.addEventListener('mousedown', function(e) {
+			e.stopPropagation();
+		});
+		input.addEventListener('click', function(e) {
+			e.stopPropagation();
+		});
+
 		// Debug: add event listener for channel input
 		var self = this; // curr guiwindow obj
 		input.addEventListener('change', function(e) {
 			let value = parseInt(e.target.value);
-			if (value >= 1 && value <= 2) {
+			if (value === 1 || value === 2) {
 					self.obj.microphoneChannel = value;
 					// check if live input is selected
 					if (self.obj.liveInputDeviceId && self.obj.liveInputDeviceId !== 'None') {
@@ -2489,7 +2530,17 @@ addSwipeEvents(div, title, objectType) {
 					// if input not valid, go back to original channel val
 					e.target.value = self.obj.microphoneChannel;
 			}
-	});
+		});
+
+		// allow keyboard input
+		input.addEventListener('keydown', function(e) {
+			e.stopPropagation();
+			if(e.key === '1' || e.key === '2' || e.key === 'Backspace' || e.key === 'Delete' ||
+				e.key === 'Enter' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+			} else {
+				e.preventDefault();
+			}
+		});
 
 		val.innerHTML = '';
 		val.appendChild(input);

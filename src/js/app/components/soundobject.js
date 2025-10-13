@@ -428,6 +428,11 @@ export default class SoundObject {
     };
 
     sound.source = context.createMediaStreamSource(stream);
+    // Debug: check what safari return 
+    console.log("Actual channelCount from source:", sound.source.channelCount);
+    console.log("Requested channels:", numChannels);
+    console.log("Stream tracks:", stream.getAudioTracks()[0].getSettings());
+
     sound.source.connect(sound.analyser); // Ensure analyser is connected to the source
     sound.source.connect(sound.scriptNode);
 
