@@ -249,7 +249,6 @@ export default class GUIWindow {
 		}
 	  }
 
-		// Debug: Input of channel should be val not delta for dragging
 	  // function changeMicrophoneChannel (dx) {
 		// object.microphoneChannel = dx+1;
 		// object.isLiveInput = true;
@@ -283,11 +282,9 @@ export default class GUIWindow {
 		
 		this.addParameter({
 		property: 'Channel',
-		// Debug:
 		value: object.microphoneChannel,
 		type: 'int',
 		cls: 'microphoneChannel',
-		// Debug: remove dragging
 		// bind: changeMicrophoneChannel
 	},elem);
 		
@@ -1873,7 +1870,11 @@ useAudioInput(deviceId) {
     if (isSafari) {
         constraints = { 
             'audio': {
-                deviceId: deviceId
+							// Debug: disable audio effect for safari
+							deviceId: deviceId,
+							autoGainControl: false,
+							noiseSuppression: false,
+							echoCancellation: false,
             }
         };
     } else {
@@ -1894,7 +1895,6 @@ useAudioInput(deviceId) {
 			// the promise can take multiple seconds to resolve, so we need to check if the object is still in live input mode
 			if (obj.isLiveInput) {
 				obj.stream = stream;
-				// Debug:
 				// Using channel param to select audio channel
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
@@ -2040,7 +2040,6 @@ useAudioInput(deviceId) {
   }
 
   startDragging(e) {
-		// Debug: prevent dragging if channel input
 		if (e.target.classList.contains('channelValue') || 
         e.target.closest('#microphoneChannel')) {
         return;
@@ -2474,7 +2473,6 @@ addSwipeEvents(div, title, objectType) {
 		input.type = 'number';
 		input.className = 'channelValue';
 		input.size = '8';
-		// Debug: change to this.val
 		input.value = p.value;
 		input.disabled = false;
 		input.style.color = "#5d5e5d";
@@ -2482,7 +2480,7 @@ addSwipeEvents(div, title, objectType) {
 		input.max = 2;
 		input.style.width = '59px';
 			
-		// Debug: remove drag handling from parent 
+		// remove drag handling from parent 
 		val.style.cursor = 'default';
 		val.onmousedown = null;
 
@@ -2511,7 +2509,7 @@ addSwipeEvents(div, title, objectType) {
 			}
 		});
 
-		// Debug: allow keyboard input
+		// allow keyboard input
 		input.addEventListener('keydown', function(e) {
 			e.stopPropagation();
 			if(e.key === '1' || e.key === '2' || e.key === 'Backspace' || e.key === 'Delete' ||
