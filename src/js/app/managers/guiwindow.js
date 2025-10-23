@@ -1719,7 +1719,8 @@ getLiveInputDevices() {
         this.obj.oldFilePlayStatus = playStatus;
         this.obj.oldSound = this.obj.omniSphere.sound;
         this.obj.oldFileName = this.obj.omniSphere.sound.name;
-        this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+				// debug: remove color change here
+        // this.obj.omniSphere.material.color.setHex(0xFFFFFF);
     }
     // Hide file controls
     this.container.querySelector('#time').style.display = "none";
@@ -1962,6 +1963,12 @@ useAudioInput(deviceId) {
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
         //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// debug: reflect color
+				if (this.app.isPlaying && !obj.liveInputIsMuted) {
+					obj.omniSphere.material.color.setHex(0xFFFFFF);
+				} else {
+						obj.omniSphere.material.color.setHex(0x8F8F8F);
+				}
 			}
             resolve(); // Resolve the Promise
         })
