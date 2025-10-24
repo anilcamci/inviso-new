@@ -836,9 +836,6 @@ export default class GUIWindow {
         type: 'number',
         cls: 'position',
         bind: changePositionOnTrajectory,
-				// debug: not trigger by click event
-        // events: [{type: 'mouseup', callback: this.restoreMovementSpeed.bind(this, object)},
-        // {type: 'click', callback: this.restoreMovementSpeed.bind(this, object)}]
     }, elem);
 
 	return elem;
@@ -1584,41 +1581,106 @@ export default class GUIWindow {
 	}
   }
 
-  async switchInputSource() {
-    if (this.obj.isLiveInput) {
-      // Switch to file input
-      this.obj.isLiveInput = false;
-	  var fileFound = false;
-	  if ( this.obj.filename != null ) {
-		try {
-			await this.getFileInput();
-			// if a file had been loaded in this GUI window, set the volume back to the old volume
-			this.obj.omniSphere.sound = this.obj.oldSound;
-			this.obj.omniSphere.sound.volume.gain.value = this.obj.oldFileInputVolume;
-			this.obj.changeRadius();
-			if ( this.obj.oldFilePlayStatus == true ) {
-				this.obj.playSound()
-			}
-			else {		
-				this.obj.stopSound();
-			}
+// Debug:
+async switchInputSource() {
+	if (this.obj.isLiveInput) {
+		// Switch to file input
+		this.obj.isLiveInput = false;
+		var fileFound = false;
+		// first check if there is an old file sound to restore
+		if (this.obj.filename != null && this.obj.oldSound) {
 			fileFound = true;
-		  } catch (error) {
-			console.error("Error getting file input: ", error);
-		  }
-	  }
-	  else {
+		}
+		
+		// stop media stream first
+		if (this.obj.stream) {
+			this.obj.stream.getTracks().forEach(track => {
+				track.stop();
+			});
+			this.obj.stream = null;
+		}
+		
+		// disconnect live input audio nodes
+		if(this.obj.omniSphere.sound) {
+			this.obj.oldLiveInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			try {
+				const liveSound = this.obj.omniSphere.sound;
+				if (liveSound.source) {
+					liveSound.source.disconnect();
+				}
+				if (liveSound.scriptNode) {
+					liveSound.scriptNode.disconnect();
+				}
+			} catch (error) {
+				console.error('Error disconnecting live input:', error);
+			}
+			
+			this.obj.omniSphere.sound = null;
+		}
+
+		// restore file sound if exists
+		if (fileFound) {
+			try {
+				this.obj.omniSphere.sound = this.obj.oldSound;
+				this.obj.oldSound = null;
+
+				this.obj.omniSphere.sound.volume.gain.value = this.obj.oldFileInputVolume;
+				this.obj.changeRadius();
+				
+				// check if is playing
+				if (this.app.isPlaying) {
+					if (this.obj.omniSphere.sound.state.isAudioPaused) {
+						this.obj.playSound();
+					}
+					this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+				} else {
+					if (!this.obj.omniSphere.sound.state.isAudioPaused) {
+						this.obj.stopSound();
+					}
+					this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+				}
+			} catch (error) {
+				console.error("Error restoring file input: ", error);
+				fileFound = false;
+				this.obj.omniSphere.sound = null;
+				this.obj.oldSound = null;
+			}
+		} else {
+			this.obj.oldSound = null;
+		}
+		
 		await this.getFileInput();
-	  }
-      this.container.querySelector('#inputText').style.opacity = "0.6";
-      this.container.querySelector('#fileText').style.opacity = "1.0";
-	  let livePlaybackElement = this.container.querySelector('#omnisphere-sound-loader #live-audio-playback')
-      livePlaybackElement.style.display = 'none';
-	  let removeFile = this.container.querySelector('#omnisphere-sound-loader .remove-file')
-	  removeFile.style.display = fileFound ? 'inline-block' : 'none';
-	  let fileTextStatusElement = document.getElementById("fileTextStatus");
-	  fileTextStatusElement.innerHTML = this.obj.oldFileName ? this.obj.oldFileName : 'None';
-    } else {
+		
+		this.container.querySelector('#inputText').style.opacity = "0.6";
+		this.container.querySelector('#fileText').style.opacity = "1.0";
+		let livePlaybackElement = this.container.querySelector('#omnisphere-sound-loader #live-audio-playback')
+		if (livePlaybackElement) {
+				livePlaybackElement.style.display = 'none';
+		}
+		let removeFile = this.container.querySelector('#omnisphere-sound-loader .remove-file')
+		if (removeFile) {
+				removeFile.style.display = fileFound ? 'inline-block' : 'none';
+		}
+		let fileTextStatusElement = document.getElementById("fileTextStatus");
+		if (fileTextStatusElement) {
+				fileTextStatusElement.innerHTML = this.obj.oldFileName ? this.obj.oldFileName : 'None';
+		}
+	} else {
+		//debug: check if curr file sound state exists
+			if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.name) {
+				// store playback state
+				this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
+				this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+				this.obj.oldFileName = this.obj.omniSphere.sound.name;
+				// pause file playback
+				if (!this.obj.omniSphere.sound.state.isAudioPaused) {
+					this.obj.stopSound(); // This pauses and saves the position
+				}
+				// store obj
+				this.obj.oldSound = this.obj.omniSphere.sound;
+				// clear curr reference
+				this.obj.omniSphere.sound = null;
+			}
       	this.getLiveInputDevices();
 		let livePlaybackElement = this.container.querySelector('#omnisphere-sound-loader #live-audio-playback')
 		livePlaybackElement.style.display = 'inline-block';
@@ -1657,7 +1719,8 @@ getLiveInputDevices() {
         this.obj.oldFilePlayStatus = playStatus;
         this.obj.oldSound = this.obj.omniSphere.sound;
         this.obj.oldFileName = this.obj.omniSphere.sound.name;
-        this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+				// debug: remove color change here
+        // this.obj.omniSphere.material.color.setHex(0xFFFFFF);
     }
     // Hide file controls
     this.container.querySelector('#time').style.display = "none";
@@ -1871,7 +1934,7 @@ useAudioInput(deviceId) {
     if (isSafari) {
         constraints = { 
             'audio': {
-							// Debug: disable audio effect for safari
+							// disable audio effect for safari
 							deviceId: deviceId,
 							autoGainControl: false,
 							noiseSuppression: false,
@@ -1900,6 +1963,12 @@ useAudioInput(deviceId) {
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
         //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// debug: reflect color
+				if (this.app.isPlaying && !obj.liveInputIsMuted) {
+					obj.omniSphere.material.color.setHex(0xFFFFFF);
+				} else {
+						obj.omniSphere.material.color.setHex(0x8F8F8F);
+				}
 			}
             resolve(); // Resolve the Promise
         })
@@ -2515,7 +2584,7 @@ addSwipeEvents(div, title, objectType) {
 			e.stopPropagation();
 		});
 
-		// Debug: add event listener for channel input
+		// add event listener for channel input
 		var self = this; // curr guiwindow obj
 		input.addEventListener('change', function(e) {
 			let value = parseInt(e.target.value);
