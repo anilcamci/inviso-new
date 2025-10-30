@@ -428,10 +428,10 @@ export default class SoundObject {
     };
 
     sound.source = context.createMediaStreamSource(stream);
-    // Debug: check what safari return 
-    console.log("Actual channelCount from source:", sound.source.channelCount);
-    console.log("Requested channels:", numChannels);
-    console.log("Stream tracks:", stream.getAudioTracks()[0].getSettings());
+    // // Debug: check what safari return 
+    // console.log("Actual channelCount from source:", sound.source.channelCount);
+    // console.log("Requested channels:", numChannels);
+    // console.log("Stream tracks:", stream.getAudioTracks()[0].getSettings());
 
     sound.source.connect(sound.analyser); // Ensure analyser is connected to the source
     sound.source.connect(sound.scriptNode);
@@ -467,7 +467,9 @@ export default class SoundObject {
     }
 
     mainMixer.connect(context.destination);
+    // fix: set init volume based on state (for global play/pause for live input)
     mainMixer.gain.value = this.oldLiveInputVolume;
+    // mainMixer.gain.value = this.oldLiveInputVolume;
     stream.getAudioTracks()[0].applyConstraints(constraints);
 
     this.omniSphere.sound = sound;
@@ -644,6 +646,13 @@ export default class SoundObject {
 }
 
   playSound(userToggled = false, following = false) {
+    // fix: handle live input
+    if(this.isLiveInput) {
+      if(this.omniSphere.sound && this.omniSphere.sound.volume) {
+        this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume;
+        this.omniSphere.material.color.setHex(0xFFFFFF);
+      }
+    } else 
     if (!this.isLiveInput && this.omniSphere.sound && this.omniSphere.sound.state) {
       this.omniSphere.sound.state.startedAt = Date.now() - this.omniSphere.sound.state.pausedAt;
       this.omniSphere.sound.state.isAudioPaused = false;
@@ -693,6 +702,14 @@ export default class SoundObject {
   }
 
   stopSound(userToggled = false, following = false) {
+    // fix: handle live input
+    if(this.isLiveInput) {
+      if(this.omniSphere.sound && this.omniSphere.sound.volume) {
+        this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
+        this.omniSphere.sound.volume.gain.value = 0;
+        this.omniSphere.material.color.setHex(0x8F8F8F);
+      }
+    } else
     if (!this.isLiveInput && this.omniSphere.sound && this.omniSphere.sound.state) {
       this.omniSphere.sound.state.pausedAt = (Date.now() - this.omniSphere.sound.state.startedAt) % (this.omniSphere.sound.state.duration * 1000);
       this.omniSphere.sound.state.isAudioPaused = true;
@@ -1327,7 +1344,14 @@ export default class SoundObject {
 
   checkPlayState(main) {
     if (main.isPlaying) { // play
-      if (this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused) {
+      // fix: add play/pause logic for live input
+      if(this.isLiveInput && this.omniSphere.sound) {
+        if(this.omniSphere.sound.volume) {
+          this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume;
+          console.log("checkplaystate, current vol: " + this.omniSphere.sound.volume.gain.value);
+        }
+        this.omniSphere.material.color.setHex(0xFFFFFF);
+      }else if (this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused) {
         this.playSound(true);
         this.userSetPlay = true;
       } 
@@ -1348,6 +1372,20 @@ export default class SoundObject {
       this.omniSphere.material.color.setHex(0xFFFFFF);
     }
     else { // pause
+      // fix: add play/pause logic for live input
+      if(this.isLiveInput && this.omniSphere.sound) {
+        if(this.omniSphere.sound.volume) {
+          if(this.omniSphere.sound.volume.gain.value > 0) {
+            this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
+          }
+          this.omniSphere.sound.volume.gain.value = 0;
+          console.log("checkplaystate, saved vol: " + this.omniSphere.sound.volume.gain.value);
+        }
+        this.omniSphere.material.color.setHex(0x8F8F8F);
+      } else if (this.omniSphere.sound && !this.omniSphere.sound.state.isAudioPaused) {
+        this.stopSound(true);
+        this.userSetPlay = false;
+      } 
       this.cones.forEach((cone) => {
         if (!cone.sound.state.isAudioPaused) {
 
@@ -1357,10 +1395,10 @@ export default class SoundObject {
         }
         cone.material.color.setHex(0x8F8F8F);
       });
-      if (this.omniSphere.sound && !this.omniSphere.sound.state.isAudioPaused) {
-        this.stopSound(true);
-        this.userSetPlay = false;
-      } 
+      // if (this.omniSphere.sound && !this.omniSphere.sound.state.isAudioPaused) {
+      //   this.stopSound(true);
+      //   this.userSetPlay = false;
+      // } 
     //   else {
     //     if(this.roomCode){
     //         this.updatePlayStatus(false);

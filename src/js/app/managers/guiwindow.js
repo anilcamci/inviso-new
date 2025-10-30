@@ -1581,7 +1581,6 @@ export default class GUIWindow {
 	}
   }
 
-// Debug:
 async switchInputSource() {
 	if (this.obj.isLiveInput) {
 		// Switch to file input
@@ -1602,7 +1601,10 @@ async switchInputSource() {
 		
 		// disconnect live input audio nodes
 		if(this.obj.omniSphere.sound) {
-			this.obj.oldLiveInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			// fix: store volume if not 0 (not muted for global play/pause)
+			if(this.obj.omniSphere.sound.volume.gain.value > 0) {
+				this.obj.oldLiveInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			}
 			try {
 				const liveSound = this.obj.omniSphere.sound;
 				if (liveSound.source) {
@@ -1666,7 +1668,7 @@ async switchInputSource() {
 				fileTextStatusElement.innerHTML = this.obj.oldFileName ? this.obj.oldFileName : 'None';
 		}
 	} else {
-		//debug: check if curr file sound state exists
+		//fix: check if curr file sound state exists
 			if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.name) {
 				// store playback state
 				this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
@@ -1777,9 +1779,19 @@ getLiveInputDevices() {
                 // set gain to 0
                 sound.volume.gain.value = 0;
                 playPauseIcon.src = 'http://localhost:8080/assets/models/play.png';
+								// debug: update color when locally paused
+								this.obj.omniSphere.material.color.setHex(0x8F8F8F);
             } else {
-                // set gain to 1
-                sound.volume.gain.value = 1;
+								// debug: update color when locally playing
+								if(this.app.isPlaying){
+									sound.volume.gain.value = this.obj.oldLiveInputVolume || 1;
+									this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+								}else {
+									sound.volume.gain.value = 0;
+									this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+								}
+                // // set gain to 1
+                // sound.volume.gain.value = 1;
                 playPauseIcon.src = 'http://localhost:8080/assets/models/pause.png';
             }
         });
@@ -1906,8 +1918,22 @@ getLiveInputDevices() {
       try {
 		await this.useAudioInput(targetDevice);
 		if (this.obj && this.obj.omniSphere && this.obj.omniSphere.sound) {
-		  this.obj.omniSphere.sound.volume.gain.value = this.obj.oldLiveInputVolume;
-		  this.obj.changeRadius();
+			// Fix: after setting new device, apply global state
+			// if globally paused, mute
+			if(!this.app.isPlaying) {
+				this.obj.omniSphere.sound.volume.gain.value = 0;
+				this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+			// if globally playing, not locally muted
+			}else if(!this.obj.liveInputIsMuted) {
+				this.obj.omniSphere.sound.volume.gain.value = this.obj.oldLiveInputVolume;
+				this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+			// if globally playing but locally muted
+			}else {
+				this.obj.omniSphere.sound.volume.gain.value = 0;
+				this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+			}
+		  // this.obj.omniSphere.sound.volume.gain.value = this.obj.oldLiveInputVolume;
+		  // this.obj.changeRadius();
 		} else {
 		  console.error("Error: omniSphere or sound is undefined");
 		}
@@ -1963,11 +1989,24 @@ useAudioInput(deviceId) {
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
         //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// fix: check global play/pause for live input
+				if(!this.app.isPlaying) {
+					if(obj.omniSphere.sound && obj.omniSphere.sound.volume) {
+						obj.omniSphere.sound.volume.gain.value = 0;
+					}
+					obj.omniSphere.material.color.setHex(0x8F8F8F);
+				}else {
+					if(obj.omniSphere.sound && obj.omniSphere.sound.volume) {
+						obj.omniSphere.sound.volume.gain.value = 0;
+						console.log("current liveinptu volume:" + obj.omniSphere.sound.volume.gain.value);
+					}
+					obj.omniSphere.material.color.setHex(0xFFFFFF);
+				}
 				// debug: reflect color
 				if (this.app.isPlaying && !obj.liveInputIsMuted) {
 					obj.omniSphere.material.color.setHex(0xFFFFFF);
 				} else {
-						obj.omniSphere.material.color.setHex(0x8F8F8F);
+					obj.omniSphere.material.color.setHex(0x8F8F8F);
 				}
 			}
             resolve(); // Resolve the Promise
