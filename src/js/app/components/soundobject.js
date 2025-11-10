@@ -47,6 +47,13 @@ export default class SoundObject {
     this.oldFilePlayStatus = true;
     this.oldFileName = null;
     this.oldSound = null;
+    // status check for last control source
+    this.lastFileControlSource = "global";
+    this.lastLiveControlSource = "global";
+
+    // flag when global play/pause
+    this.localLiveOverride = false;
+
     this.liveInputDeviceId = 'None';
     this.stream = null;
     this.analyserContext = null;
@@ -58,7 +65,7 @@ export default class SoundObject {
 
     this.objConeCache = {};
     this.oldTrajectorySpeed = null;
-    
+
 
     this.containerObject = new THREE.Object3D();
 
@@ -117,10 +124,10 @@ export default class SoundObject {
     main.scene.add(this.containerObject);
     // TODO: update roomCode if going from individual mode to group mode
     this.roomCode = main.roomCode;
-    if(this.roomCode != null){
+    if (this.roomCode != null) {
       this.headKey = main.headKey.key;
       // Firebase tracking for newly created soundObjects
-      if(copyObject){
+      if (copyObject) {
         this.containerObject.name = copyObject;
       } else {
         let objectKey = this.dbRef.child('objects').push();
@@ -136,7 +143,7 @@ export default class SoundObject {
 
   }
 
-  updateFirebaseDetails(dbRef, stoRef, headKey, roomCode){
+  updateFirebaseDetails(dbRef, stoRef, headKey, roomCode) {
     this.headKey = headKey.key;
     this.stoRef = stoRef;
     this.dbRef = dbRef;
@@ -144,9 +151,9 @@ export default class SoundObject {
     // push to firebase with new details
     let objectKey = this.dbRef.child('objects').push();
     this.containerObject.name = objectKey.key;
-    
-    let playState = this.omniSphere.sound ? !this.omniSphere.sound.state.isAudioPaused : 
-                    this.app.isPlaying ? null : false;
+
+    let playState = this.omniSphere.sound ? !this.omniSphere.sound.state.isAudioPaused :
+      this.app.isPlaying ? null : false;
     objectKey.set({
       position: this.containerObject.position,
       type: this.type,
@@ -156,21 +163,21 @@ export default class SoundObject {
     });
 
     // upload object's sound
-    if(this.omniSphere.sound != null && this.file){
-        this.uploadSoundToFirebase(this, this.containerObject.name, this.file);
+    if (this.omniSphere.sound != null && this.file) {
+      this.uploadSoundToFirebase(this, this.containerObject.name, this.file);
     }
 
     // upload all of object's cones
     this.cones.forEach((c) => {
-        this.dbRef.child('objects').child('cones').push();
-        if(c.file){
-            this.uploadSoundToFirebase(c, c.uuid, c.file);
-        }
+      this.dbRef.child('objects').child('cones').push();
+      if (c.file) {
+        this.uploadSoundToFirebase(c, c.uuid, c.file);
+      }
     });
 
     // upload object's trajectory
-    if(this.trajectory){
-        this.trajectory.updateFirebaseDetails(dbRef, stoRef, headKey, roomCode);
+    if (this.trajectory) {
+      this.trajectory.updateFirebaseDetails(dbRef, stoRef, headKey, roomCode);
     }
   }
 
@@ -190,10 +197,10 @@ export default class SoundObject {
     const coneMaterial = new THREE.MeshBasicMaterial({
       color: coneColor,
       opacity: 0.8,
-      transparent:true
+      transparent: true
     });
 
-    coneGeo.translate(0, coneHeight / 2, 0);  
+    coneGeo.translate(0, coneHeight / 2, 0);
     coneGeo.rotateX(Math.PI / 2);
     coneMaterial.side = THREE.DoubleSide;
 
@@ -208,9 +215,9 @@ export default class SoundObject {
 
     cone.name = 'cone';
     cone.baseColor = coneColor;
-    cone.hoverColor = function() {
+    cone.hoverColor = function () {
       let c = this.baseColor.clone();
-      c.offsetHSL(0,-0.05,0.1);
+      c.offsetHSL(0, -0.05, 0.1);
       return c;
     }
 
@@ -219,8 +226,8 @@ export default class SoundObject {
     var materialColor = cone.userSetPlay ? cone.baseColor.getHex() : 0x8F8F8F;
     cone.material.color.setHex(materialColor);
 
-    sound.scriptNode.onaudioprocess = function() {
-      let array =  new Uint8Array(sound.analyser.frequencyBinCount);
+    sound.scriptNode.onaudioprocess = function () {
+      let array = new Uint8Array(sound.analyser.frequencyBinCount);
       sound.analyser.getByteFrequencyData(array);
       let values = 0;
       let length = array.length;
@@ -238,7 +245,7 @@ export default class SoundObject {
 
     cone.long = 0;
     cone.lat = 0;
-    
+
 
     this.cones.push(cone);
     this.containerObject.add(cone);
@@ -250,29 +257,29 @@ export default class SoundObject {
     let azimuth, elevation, radial_distance;
     azimuth = Math.atan2(z, x) * 180 / Math.PI;
     if (azimuth < 0) {
-        azimuth += 360;
+      azimuth += 360;
     }
     azimuth = 90 - azimuth;
     azimuth += 180;
     // Mapping y [-300, 300] to elevation [-90, 90]
     elevation = (y / 300) * 90;
-    
+
     // Computing radial distance as a normalized distance
     let maxPossibleDistance = Math.sqrt(Math.pow(5000, 2) + Math.pow(3000, 2) + Math.pow(300, 2));
-    radial_distance = Math.abs(1 - Math.sqrt(x*x + y*y + z*z) / maxPossibleDistance); // TODO this would need to be applied as an extra gain node
-  
+    radial_distance = Math.abs(1 - Math.sqrt(x * x + y * y + z * z) / maxPossibleDistance); // TODO this would need to be applied as an extra gain node
+
     return {
-        azimuth: azimuth,
-        elevation: elevation,
-        radial_distance: radial_distance
+      azimuth: azimuth,
+      elevation: elevation,
+      radial_distance: radial_distance
     };
-}
+  }
 
   setAudioPosition(object) {
     const o = new THREE.Vector3();
     object.updateMatrixWorld();
     o.setFromMatrixPosition(object.matrixWorld);
-    if(object.sound){
+    if (object.sound) {
       object.sound.panner.setPosition(o.x, o.y, o.z);
       if (object.sound && object.sound.encoder) {
         var position = this.linearInterpToSpherical(o.x, o.y, o.z);
@@ -297,26 +304,26 @@ export default class SoundObject {
 
       vec.applyMatrix4(m);
       vec.normalize();
-      if(object.sound){
+      if (object.sound) {
         object.sound.panner.setOrientation(vec.x, vec.y, vec.z);
         // fix clicking noticed in recent safari versions when updating cone orientation in panner node
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         if (isSafari) {
-            // get the listener from theh audio context
-            const audioContext = object.sound.panner.context;
-            const listener = audioContext.listener;
-            const offset = 0.0001;
+          // get the listener from theh audio context
+          const audioContext = object.sound.panner.context;
+          const listener = audioContext.listener;
+          const offset = 0.0001;
 
-            // get the listener's current positions
-            const listenerX = listener.positionX.value;
-            const listenerY = listener.positionY.value;
-            const listenerZ = listener.positionZ.value;
+          // get the listener's current positions
+          const listenerX = listener.positionX.value;
+          const listenerY = listener.positionY.value;
+          const listenerZ = listener.positionZ.value;
 
-            // apply extremely small random offsets
-            const newX = listenerX + (Math.random() * 2 - 1) * offset;
-            const newY = listenerY + (Math.random() * 2 - 1) * offset;
-            const newZ = listenerZ + (Math.random() * 2 - 1) * offset;
-            listener.setPosition(newX, newY, newZ);
+          // apply extremely small random offsets
+          const newX = listenerX + (Math.random() * 2 - 1) * offset;
+          const newY = listenerY + (Math.random() * 2 - 1) * offset;
+          const newZ = listenerZ + (Math.random() * 2 - 1) * offset;
+          listener.setPosition(newX, newY, newZ);
         }
       }
 
@@ -326,54 +333,54 @@ export default class SoundObject {
     }
   }
 
-  uploadSoundToFirebase(object, id, file){
+  uploadSoundToFirebase(object, id, file) {
     let tempDbRef = this.dbRef;
     let headKey = this.headKey;
-    if(object.type == 'SoundObject'){
-        object.isAddingSound = true;
-        let self = this;
-        // change path from soundObjects/id
-        let upload = this.stoRef.child('soundObjects/'+ id +'/' + file.name).put(file);
-        upload.on('state_changed', function(snapshot){
-          var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log('Upload is ' + progress + '% done');
-        }, function(error){
-          console.log('Problem uploading file');
-        }, function(){
-          console.log('File finished uploading, pushing status');
-          tempDbRef.child('objects').child(id).update({
-            sound: file.name,
-            volume: object.omniSphere.sound.volume.gain.value,
-            lastEdit: headKey,
-            isPlaying: object.omniSphere.sound != null ? !object.omniSphere.sound.state.isAudioPaused : self.app.isPlaying
-          });
-          object.isAddingSound = false;
+    if (object.type == 'SoundObject') {
+      object.isAddingSound = true;
+      let self = this;
+      // change path from soundObjects/id
+      let upload = this.stoRef.child('soundObjects/' + id + '/' + file.name).put(file);
+      upload.on('state_changed', function (snapshot) {
+        var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+      }, function (error) {
+        console.log('Problem uploading file');
+      }, function () {
+        console.log('File finished uploading, pushing status');
+        tempDbRef.child('objects').child(id).update({
+          sound: file.name,
+          volume: object.omniSphere.sound.volume.gain.value,
+          lastEdit: headKey,
+          isPlaying: object.omniSphere.sound != null ? !object.omniSphere.sound.state.isAudioPaused : self.app.isPlaying
         });
+        object.isAddingSound = false;
+      });
     } else {
-        let self = this;
-        let upload = this.stoRef.child('soundObjects/' + this.containerObject.name + '/' +  id + '/' + file.name).put(file);
-        let isConePlaying = !object.sound.state.isAudioPaused;
-        this.finishUploadingSound = false;
-        upload.on('state_changed', function(snapshot){
-          var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log('Upload is ' + progress + '% done');
-        }, function(error){
-          console.log('Problem uploading file');
-        }, function(){
-          tempDbRef.child('objects').child(self.containerObject.name).child('cones').child(id).update({
-            type: "cone",
-            parent: self.containerObject.name,
-            uuid: id,
-            sound: file.name,
-            volume: object.sound.volume.gain.value,
-            spread: object.sound.spread,
-            longitude: object.long,
-            latitude: object.lat,
-            lastEdit: headKey,
-            isPlaying: isConePlaying,
-          });
-          self.finishUploadingSound = true;
+      let self = this;
+      let upload = this.stoRef.child('soundObjects/' + this.containerObject.name + '/' + id + '/' + file.name).put(file);
+      let isConePlaying = !object.sound.state.isAudioPaused;
+      this.finishUploadingSound = false;
+      upload.on('state_changed', function (snapshot) {
+        var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+      }, function (error) {
+        console.log('Problem uploading file');
+      }, function () {
+        tempDbRef.child('objects').child(self.containerObject.name).child('cones').child(id).update({
+          type: "cone",
+          parent: self.containerObject.name,
+          uuid: id,
+          sound: file.name,
+          volume: object.sound.volume.gain.value,
+          spread: object.sound.spread,
+          longitude: object.long,
+          latitude: object.lat,
+          lastEdit: headKey,
+          isPlaying: isConePlaying,
         });
+        self.finishUploadingSound = true;
+      });
     }
 
   }
@@ -384,12 +391,12 @@ export default class SoundObject {
     const context = this.audio.context;
     const mainMixer = context.createGain();
     var sound = {};
-    const constraints = { 
-        'video': false, 
-        'audio': {
-          'deviceId': deviceId,
-          'echoCancellation': false
-        }, 
+    const constraints = {
+      'video': false,
+      'audio': {
+        'deviceId': deviceId,
+        'echoCancellation': false
+      },
     };
     // Initialize sound object
     sound.mainMixer = mainMixer;
@@ -436,34 +443,34 @@ export default class SoundObject {
     sound.source.connect(sound.analyser); // Ensure analyser is connected to the source
     sound.source.connect(sound.scriptNode);
 
-    if(selectedChannel !== null){
-        console.log("Multiple channels exist! Selected channel:", selectedChannel);
-        const splitter = context.createChannelSplitter(numChannels);
-        const merger = context.createChannelMerger(1); // merge into a single channel
-        sound.source.connect(splitter); // 0 is L, 1 is R
-        let gains = [];
-        for(let i = 0; i < numChannels; ++i){
-            let gain = context.createGain();
-            if(i === selectedChannel - 1){
-                gain.gain.value = 1.0;
-            } else {
-                gain.gain.value = 0.0;
-            }
-            gains.push(gain);
+    if (selectedChannel !== null) {
+      console.log("Multiple channels exist! Selected channel:", selectedChannel);
+      const splitter = context.createChannelSplitter(numChannels);
+      const merger = context.createChannelMerger(1); // merge into a single channel
+      sound.source.connect(splitter); // 0 is L, 1 is R
+      let gains = [];
+      for (let i = 0; i < numChannels; ++i) {
+        let gain = context.createGain();
+        if (i === selectedChannel - 1) {
+          gain.gain.value = 1.0;
+        } else {
+          gain.gain.value = 0.0;
         }
-        for(let i = 0; i < gains.length; ++i){
-            splitter.connect(gains[i], i);
-            gains[i].connect(merger, 0, 0);
-        }
+        gains.push(gain);
+      }
+      for (let i = 0; i < gains.length; ++i) {
+        splitter.connect(gains[i], i);
+        gains[i].connect(merger, 0, 0);
+      }
 
-        merger.connect(sound.volume);
-        sound.volume.connect(sound.panner);
-        sound.panner.connect(mainMixer);
+      merger.connect(sound.volume);
+      sound.volume.connect(sound.panner);
+      sound.panner.connect(mainMixer);
     } else {
-        sound.panner.panningModel = 'equalpower';
-        sound.source.connect(sound.volume);
-        sound.volume.connect(sound.panner);
-        sound.panner.connect(mainMixer);
+      sound.panner.panningModel = 'equalpower';
+      sound.source.connect(sound.volume);
+      sound.volume.connect(sound.panner);
+      sound.panner.connect(mainMixer);
     }
 
     mainMixer.connect(context.destination);
@@ -474,13 +481,13 @@ export default class SoundObject {
 
     this.omniSphere.sound = sound;
     this.setAudioPosition(this.omniSphere);
-}
+  }
 
   // stop taking in live input stream
   stopMediaStream() {
     if (this.stream) {
       this.isLiveInput = false;
-      this.stream.getAudioTracks().forEach(function(track) {
+      this.stream.getAudioTracks().forEach(function (track) {
         track.stop();
       });
       // store the live input volume so it can be reset to this if the user switches back to live mode
@@ -489,7 +496,7 @@ export default class SoundObject {
     }
   }
 
-  loadSound(file, audio, mute, object, soundIn = null, copy=false) {
+  loadSound(file, audio, mute, object, soundIn = null, copy = false) {
     const context = audio.context;
     const mainMixer = context.createGain();
     const isAmbisonicMode = this.app.isAmbisonicMode;
@@ -499,25 +506,25 @@ export default class SoundObject {
 
     console.log("loading ", file.name);
     // add metadata with name of uuid
-    if(object != null && !copy && this.roomCode != null){
+    if (object != null && !copy && this.roomCode != null) {
       let id = object.uuid;
-      if(object.type == 'SoundObject'){
+      if (object.type == 'SoundObject') {
         id = object.containerObject.name;
         this.uploadSoundToFirebase(object, id, file);
       }
     }
-    
+
     if (object) { // cones can be null at this point
       object.filename = file.name;
       object.file = file;
     }
     var temp = null;
-    if(soundIn != null){
+    if (soundIn != null) {
       temp = Object.assign(soundIn, temp);
     }
-    let promise = new Promise(function(resolve, reject) {
+    let promise = new Promise(function (resolve, reject) {
       reader.onload = (ev) => {
-        context.decodeAudioData(ev.target.result, function(decodedData) {
+        context.decodeAudioData(ev.target.result, function (decodedData) {
           if (object && object.type === 'SoundObject') {
             /* attach omnidirectional sound */
             object = object.omniSphere;
@@ -527,8 +534,8 @@ export default class SoundObject {
             if (!object.sound.state.isAudioPaused) {
               object.sound.source.stop();
             }
-            
-            if(temp){
+
+            if (temp) {
               var pausedTime = temp.state.pausedAt;
               var current = temp.state.currentTime;
             }
@@ -536,7 +543,7 @@ export default class SoundObject {
             object.sound.source.disconnect(object.sound.scriptNode);
             object.sound.scriptNode.disconnect(context.destination);
 
-            if(temp){
+            if (temp) {
               object.sound.state.clear(temp.state);
             }
             else {
@@ -562,11 +569,11 @@ export default class SoundObject {
           sound.volume.connect(sound.panner);
           // Create the encoder anyways for when the user might switch to that mode.
           sound.encoder = new ambisonics.monoEncoder(sound.context, 3);
-          
+
           // Default to Binaural Mode
-          if(!isAmbisonicMode){
+          if (!isAmbisonicMode) {
             sound.panner.connect(mainMixer);
-          }else{ // Ambisonic Mode
+          } else { // Ambisonic Mode
             sound.panner.connect(sound.encoder.in);
             sound.encoder.out.connect(mainMixer);
           }
@@ -583,7 +590,7 @@ export default class SoundObject {
           sound.state.duration = 0;
 
           // restore state
-          if(soundIn != null && temp){
+          if (soundIn != null && temp) {
             sound.state.pausedAt = pausedTime;
             sound.state.currentTime = current;
           }
@@ -594,19 +601,19 @@ export default class SoundObject {
           }
 
           sound.play = (resumeTime = 0) => {
-              sound.scriptNode = context.createScriptProcessor(2048, 1, 1);
-              sound.scriptNode.connect(context.destination);
-              sound.source = context.createBufferSource();
-              sound.source.loop = true;
-              sound.source.connect(sound.scriptNode);
-              sound.source.connect(sound.volume);
-              sound.source.buffer = decodedData;
+            sound.scriptNode = context.createScriptProcessor(2048, 1, 1);
+            sound.scriptNode.connect(context.destination);
+            sound.source = context.createBufferSource();
+            sound.source.loop = true;
+            sound.source.connect(sound.scriptNode);
+            sound.source.connect(sound.volume);
+            sound.source.buffer = decodedData;
 
-              sound.state.duration = sound.source.buffer.duration;
-              sound.source.start(context.currentTime + 0.020, resumeTime);
+            sound.state.duration = sound.source.buffer.duration;
+            sound.source.start(context.currentTime + 0.020, resumeTime);
           }
 
-          if(soundIn != null){
+          if (soundIn != null) {
             sound.state.startedAt = Date.now() - sound.state.pausedAt;
             sound.state.isAudioPaused = false;
             sound.play(sound.state.pausedAt / 1000);
@@ -643,89 +650,101 @@ export default class SoundObject {
     });
     //console.log("finished sound loading");
     return promise;
-}
+  }
 
   playSound(userToggled = false, following = false) {
-    // fix: handle live input
-    if(this.isLiveInput) {
-      if(this.omniSphere.sound && this.omniSphere.sound.volume) {
-        this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume;
+    // handle live input
+    if (this.isLiveInput) {
+      if (!following) this.lastLiveControlSource = userToggled ? "local" : "global";
+      if (this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.volume) {
+        this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume || 1.0;
         this.omniSphere.material.color.setHex(0xFFFFFF);
       }
-    } else 
-    if (!this.isLiveInput && this.omniSphere.sound && this.omniSphere.sound.state) {
+    }
+    else if (!this.isLiveInput && this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.state) {
+      if (!following) {
+        this.lastFileControlSource = userToggled ? "local" : "global";
+        this.oldFilePlayStatus = true;
+      }
+
       this.omniSphere.sound.state.startedAt = Date.now() - this.omniSphere.sound.state.pausedAt;
       this.omniSphere.sound.state.isAudioPaused = false;
 
       this.omniSphere.sound.play(this.omniSphere.sound.state.pausedAt / 1000);
-
       this.omniSphere.material.color.setHex(0xFFFFFF);
-      if(userToggled && this.roomCode != null){
+
+      if (userToggled && this.roomCode != null) {
         this.updatePlayStatus(true);
       }
-    } else {
-        this.omniSphere.material.color.setHex(0xFFFFFF);
     }
-    this.oldFilePlayStatus = true;
   }
+
 
   playConeSound(cone, userToggled = false, following = false) {
     cone.sound.state.startedAt = Date.now() - cone.sound.state.pausedAt;
     cone.sound.state.isAudioPaused = false;
 
     cone.sound.play(cone.sound.state.pausedAt / 1000);
-    
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-         if (isSafari) {
-             // get the listener from the audio context
-             const audioContext = cone.sound.panner.context;
-             const listener = audioContext.listener;
-             const offset = 0.0001;
- 
-             // get the listener's current positions
-             const listenerX = listener.positionX.value;
-             const listenerY = listener.positionY.value;
-             const listenerZ = listener.positionZ.value;
- 
-             // apply extremely small random offsets
-             const newX = listenerX + (Math.random() * 2 - 1) * offset;
-             const newY = listenerY + (Math.random() * 2 - 1) * offset;
-             const newZ = listenerZ + (Math.random() * 2 - 1) * offset;
-             listener.setPosition(newX, newY, newZ);
-         }
 
-    if(userToggled && this.roomCode != null){
-        this.updateConePlayStatus(true, following, cone.uuid);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      // get the listener from the audio context
+      const audioContext = cone.sound.panner.context;
+      const listener = audioContext.listener;
+      const offset = 0.0001;
+
+      // get the listener's current positions
+      const listenerX = listener.positionX.value;
+      const listenerY = listener.positionY.value;
+      const listenerZ = listener.positionZ.value;
+
+      // apply extremely small random offsets
+      const newX = listenerX + (Math.random() * 2 - 1) * offset;
+      const newY = listenerY + (Math.random() * 2 - 1) * offset;
+      const newZ = listenerZ + (Math.random() * 2 - 1) * offset;
+      listener.setPosition(newX, newY, newZ);
+    }
+
+    if (userToggled && this.roomCode != null) {
+      this.updateConePlayStatus(true, following, cone.uuid);
     }
 
     cone.material.color.setHex(cone.baseColor.getHex());
   }
 
   stopSound(userToggled = false, following = false) {
-    // fix: handle live input
-    if(this.isLiveInput) {
-      if(this.omniSphere.sound && this.omniSphere.sound.volume) {
+    // handle live input
+    if (this.isLiveInput) {
+      this.lastLiveControlSource = userToggled ? "local" : "global";
+      if (this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.volume) {
         this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
         this.omniSphere.sound.volume.gain.value = 0;
         this.omniSphere.material.color.setHex(0x8F8F8F);
       }
-    } else
-    if (!this.isLiveInput && this.omniSphere.sound && this.omniSphere.sound.state) {
+    }
+    else if (!this.isLiveInput && this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.state) {
+      // change control source and status if not following 
+      if (!following) {
+        this.lastFileControlSource = userToggled ? "local" : "global";
+        this.oldFilePlayStatus = false;
+      }
+
       this.omniSphere.sound.state.pausedAt = (Date.now() - this.omniSphere.sound.state.startedAt) % (this.omniSphere.sound.state.duration * 1000);
       this.omniSphere.sound.state.isAudioPaused = true;
-      this.omniSphere.sound.source.stop();
+
+      if (this.omniSphere.sound.source) {
+        try { this.omniSphere.sound.source.stop(); } catch (e) { }
+      }
 
       this.omniSphere.material.color.setHex(0x8F8F8F);
-      if(userToggled && this.roomCode != null){
-       this.updatePlayStatus(false);
-     }
-    } else {
-        this.omniSphere.material.color.setHex(0x8F8F8F);
+
+      if (userToggled && this.roomCode != null) {
+        this.updatePlayStatus(false);
+      }
     }
-    this.oldFilePlayStatus = false;
   }
 
-  updatePlayStatus(status){
+  updatePlayStatus(status) {
     let updates = {};
     updates['isPlaying'] = status;
     console.log("updating play status", this.headKey);
@@ -733,10 +752,10 @@ export default class SoundObject {
     this.dbRef.child('objects').child(this.containerObject.name).update(updates);
   }
 
-  updateConePlayStatus(status, following, id){
+  updateConePlayStatus(status, following, id) {
     let updates = {};
     updates['isPlaying'] = status;
-    if(!following){
+    if (!following) {
       updates['lastEdit'] = this.headKey;
     }
     this.dbRef.child('objects').child(this.containerObject.name).child('cones').child(id).update(updates);
@@ -750,8 +769,8 @@ export default class SoundObject {
     cone.material.color.setHex(0x8F8F8F);
     cone.sound.source.stop();
     // cone.filename = null;
-    if(userToggled && this.roomCode != null){
-        this.updateConePlayStatus(false, following, cone.uuid);
+    if (userToggled && this.roomCode != null) {
+      this.updateConePlayStatus(false, following, cone.uuid);
     }
   }
 
@@ -787,19 +806,19 @@ export default class SoundObject {
       pointer.y = this.containerObject.position.y;
     }
 
-    if(this.trajectory){
+    if (this.trajectory) {
       this.trajectory.move(pointer, main.nonScaledMouse, main.perspectiveView);
     }
 
     this.setPosition(pointer);
     // fix for dragging while on trajectory
-    if(this.roomCode != null){
+    if (this.roomCode != null) {
       updates["position"] = pointer;
       updates["lastEdit"] = this.app.headKey.key;
       this.dbRef.child('objects').child(this.containerObject.name).update(updates);
     }
-  
-    if(!isTrajectoryDragging){
+
+    if (!isTrajectoryDragging) {
       this.hasBeenMoved = true;
     }
   }
@@ -817,13 +836,13 @@ export default class SoundObject {
       }
     }
 
-    if (this.omniSphere.sound){
+    if (this.omniSphere.sound) {
       this.setAudioPosition(this.omniSphere);
     }
   }
 
-  updateSpeed(rawSpeed){
-    if(this.roomCode != null){
+  updateSpeed(rawSpeed) {
+    if (this.roomCode != null) {
       this.dbRef.child('objects').child(this.containerObject.name).update({
         speed: rawSpeed,
         lastEdit: this.headKey,
@@ -832,14 +851,14 @@ export default class SoundObject {
   }
 
   addToScene(scene, pos = false) {
-    if(pos){
+    if (pos) {
       this.setPosition(new THREE.Vector3(pos.x, pos.y, pos.z));
     }
     scene.add(this.containerObject);
-    if(this.roomCode != null){
+    if (this.roomCode != null) {
       this.dbRef.child('objects').child(this.containerObject.name).update({});
     }
-    
+
   }
 
   setActive(main) {
@@ -857,13 +876,13 @@ export default class SoundObject {
 
   changeRadius(changedVolume = false) {
     if (this.omniSphere.sound && this.omniSphere.sound.volume) {
-      const r = 0.5 + 0.5*this.omniSphere.sound.volume.gain.value;
+      const r = 0.5 + 0.5 * this.omniSphere.sound.volume.gain.value;
       this.omniSphere.scale.x = this.omniSphere.scale.y = this.omniSphere.scale.z = r;
     }
     else {
       this.omniSphere.scale.x = this.omniSphere.scale.y = this.omniSphere.scale.z = 1;
     }
-    if(changedVolume && this.roomCode != null){
+    if (changedVolume && this.roomCode != null) {
       this.dbRef.child('objects').child(this.containerObject.name).update({
         volume: this.omniSphere.sound.volume.gain.value
       });
@@ -873,7 +892,7 @@ export default class SoundObject {
   changeLength(cone) {
     const r = cone.sound.spread * 90;
     const l = cone.sound.volume.gain.value * 50 + 50;
-    cone.sound.panner.coneInnerAngle = Math.atan( r / l) * (180 / Math.PI);
+    cone.sound.panner.coneInnerAngle = Math.atan(r / l) * (180 / Math.PI);
     cone.sound.panner.coneOuterAngle = cone.sound.panner.coneInnerAngle * 1.5;
 
     cone.geometry.dynamic = true;
@@ -895,7 +914,7 @@ export default class SoundObject {
   changeWidth(cone) {
     const r = cone.sound.spread * 90;
     const l = cone.sound.volume.gain.value * 50 + 50;
-    cone.sound.panner.coneInnerAngle = Math.atan( r / l) * (180 / Math.PI);
+    cone.sound.panner.coneInnerAngle = Math.atan(r / l) * (180 / Math.PI);
     cone.sound.panner.coneOuterAngle = cone.sound.panner.coneInnerAngle * 3;
 
     cone.geometry.dynamic = true;
@@ -924,9 +943,9 @@ export default class SoundObject {
 
     //distribute to sphere
     out.set(
-                Math.sin( lat ) * Math.sin( lng ),
-                Math.cos( lat ),
-                Math.sin( lat ) * Math.cos( lng )
+      Math.sin(lat) * Math.sin(lng),
+      Math.cos(lat),
+      Math.sin(lat) * Math.cos(lng)
     );
     return out;
   }
@@ -937,34 +956,34 @@ export default class SoundObject {
     cone.lookAt(point);
     this.setAudioPosition(cone);
 
-    const longlat = (function( vector3 ) {
-        // taken from https://gist.github.com/nicoptere/2f2571db4b454bb18cd9
-        vector3.normalize();
+    const longlat = (function (vector3) {
+      // taken from https://gist.github.com/nicoptere/2f2571db4b454bb18cd9
+      vector3.normalize();
 
-        //longitude = angle of the vector around the Y axis
-        //-( ) : negate to flip the longitude (3d space specific )
-        //- PI / 2 to face the Z axis
-        var lng = -( Math.atan2( -vector3.z, -vector3.x ) ) - Math.PI / 2;
+      //longitude = angle of the vector around the Y axis
+      //-( ) : negate to flip the longitude (3d space specific )
+      //- PI / 2 to face the Z axis
+      var lng = -(Math.atan2(-vector3.z, -vector3.x)) - Math.PI / 2;
 
-        //to bind between -PI / PI
-        if( lng < - Math.PI )lng += Math.PI*2;
+      //to bind between -PI / PI
+      if (lng < - Math.PI) lng += Math.PI * 2;
 
-        //latitude : angle between the vector & the vector projected on the XZ plane on a unit sphere
+      //latitude : angle between the vector & the vector projected on the XZ plane on a unit sphere
 
-        //project on the XZ plane
-        var p = new THREE.Vector3( vector3.x, 0, vector3.z );
-        //project on the unit sphere
-        p.normalize();
-        let dotProduct = Number(p.dot(vector3)).toFixed(10);
-        //compute the angle ( both vectors are normalized, no division by the sum of lengths )
-        var lat = Math.acos(dotProduct);
+      //project on the XZ plane
+      var p = new THREE.Vector3(vector3.x, 0, vector3.z);
+      //project on the unit sphere
+      p.normalize();
+      let dotProduct = Number(p.dot(vector3)).toFixed(10);
+      //compute the angle ( both vectors are normalized, no division by the sum of lengths )
+      var lat = Math.acos(dotProduct);
 
-        //invert if Y is negative to ensure the latitude is between -PI/2 & PI / 2
-        if( vector3.y < 0 ) lat *= -1;
+      //invert if Y is negative to ensure the latitude is between -PI/2 & PI / 2
+      if (vector3.y < 0) lat *= -1;
 
-        return [ lng,lat ];
+      return [lng, lat];
 
-      })( coneRotation );
+    })(coneRotation);
     cone.long = longlat[0];
     cone.lat = longlat[1];
     return longlat;
@@ -974,19 +993,18 @@ export default class SoundObject {
   pointConeMagic(cone, lat, long) {
     // adapted from https://gist.github.com/nicoptere/2f2571db4b454bb18cd9
 
-    const v = (function lonLatToVector3( lng, lat )
-      {
+    const v = (function lonLatToVector3(lng, lat) {
       //flips the Y axis
       lat = Math.PI / 2 - lat;
 
       //distribute to sphere
       return new THREE.Vector3(
-        Math.sin( lat ) * Math.sin( lng ),
-        Math.cos( lat ),
-        Math.sin( lat ) * Math.cos( lng )
+        Math.sin(lat) * Math.sin(lng),
+        Math.cos(lat),
+        Math.sin(lat) * Math.cos(lng)
       );
 
-      })( long, lat );
+    })(long, lat);
     if (v.x === 0) { v.x = 0.0001; }
     const point = this.containerObject.position.clone().add(v);
     this.pointCone(cone, point);
@@ -995,24 +1013,24 @@ export default class SoundObject {
 
   applySoundToCone(cone, sound) {
 
-    sound.scriptNode.onaudioprocess = function() {
-      let array =  new Uint8Array(sound.analyser.frequencyBinCount);
+    sound.scriptNode.onaudioprocess = function () {
+      let array = new Uint8Array(sound.analyser.frequencyBinCount);
       sound.analyser.getByteFrequencyData(array);
       let values = 0;
       let length = array.length;
       for (let i = 0; i < length; i++) values += array[i];
       let average = values / length;
       cone.material.opacity = Helpers.mapRange(average, 50, 100, 0.65, 0.95);
-      
-     // Updates current time of playback for audio display
+
+      // Updates current time of playback for audio display
       if (cone.sound && !cone.sound.state.isAudioPaused && !cone.sound.state.isChangingAudioTime) {
         var currentTime = (Date.now() - cone.sound.state.startedAt) / 1000;
         currentTime = currentTime % Math.floor(cone.sound.state.duration);
         cone.sound.state.currentTime = currentTime;
       }
-    
+
     }
-  
+
     sound.spread = cone.sound.spread;
     sound.panner.refDistance = cone.sound.panner.refDistance;
     sound.panner.distanceModel = cone.sound.panner.distanceModel;
@@ -1032,7 +1050,7 @@ export default class SoundObject {
     }
     cone.sound.source.disconnect(cone.sound.scriptNode);
     cone.sound.scriptNode.disconnect(this.audio.context.destination);
-    
+
     var previousState = cone.sound.state;
     var savedState = new Object();
     var savedState = Object.assign(savedState, previousState);
@@ -1043,12 +1061,12 @@ export default class SoundObject {
     this.cones.splice(i, 1);
     this.containerObject.remove(cone);
     this.gui.removeCone(cone);
-    if(this.cones.length - 1 >= 0){
+    if (this.cones.length - 1 >= 0) {
       this.app.interactiveCone = this.cones[this.cones.length - 1];
     } else {
       this.app.interactiveCone = null;
     }
-    if(this.roomCode != null){
+    if (this.roomCode != null) {
       this.dbRef.child('objects').child(this.containerObject.name).child('cones').child(cone.uuid).remove();
     }
   }
@@ -1067,17 +1085,17 @@ export default class SoundObject {
       this.prevOmniSphereSound = new Object();
       this.prevOmniSphereSound = Object.assign(this.prevOmniSphereSound, this.omniSphere.sound);
     }
-    if(this.roomCode != null){
-        // can this remove sounds from storage
+    if (this.roomCode != null) {
+      // can this remove sounds from storage
       this.stoRef.child('soundObjects').child(this.containerObject.name).listAll()
-      .then((res) => {
-        res.items.forEach((itemRef) => {
+        .then((res) => {
+          res.items.forEach((itemRef) => {
             console.log(itemRef.location._path)
-        });
-        res.prefixes.forEach((folderRef) => {
+          });
+          res.prefixes.forEach((folderRef) => {
             console.log(folderRef)
-        });
-      })
+          });
+        })
       this.dbRef.child('objects').child(this.containerObject.name).remove();
     }
   }
@@ -1086,11 +1104,11 @@ export default class SoundObject {
     scene.add(this.containerObject);
     scene.add(this.altitudeHelper);
     scene.add(this.axisHelper);
-    if(this.trajectory){
+    if (this.trajectory) {
       scene.add(this.trajectory);
     }
 
-    for(const i in this.cones){
+    for (const i in this.cones) {
       this.loadSound(this.cones[i].file, this.audio, this.isMuted, this.cones[i]).then((sound) => {
         this.applySoundToCone(this.cones[i], sound);
         this.setAudioPosition(this.cones[i]);
@@ -1098,7 +1116,7 @@ export default class SoundObject {
       });
     }
 
-    if(this.file){
+    if (this.file) {
       var materialColor = this.userSetPlay ? 0xFFFFFF : 0x8F8F8F;
       this.omniSphere.material.color.setHex(materialColor);
 
@@ -1116,7 +1134,7 @@ export default class SoundObject {
 
   }
 
-  restoreConeToScene(cone, soundIn){
+  restoreConeToScene(cone, soundIn) {
     soundIn.source.connect(soundIn.scriptNode);
     soundIn.scriptNode.connect(this.audio.context.destination);
     soundIn.source.connect(soundIn.volume);
@@ -1124,7 +1142,7 @@ export default class SoundObject {
 
     var materialColor = cone.userSetPlay ? cone.baseColor.getHex() : 0x8F8F8F;
     cone.material.color.setHex(materialColor);
-    
+
     this.cones.push(cone);
     this.loadSound(cone.file, this.audio, this.isMuted, cone, soundIn).then((sound) => {
       cone.sound = sound;
@@ -1207,14 +1225,14 @@ export default class SoundObject {
     this.movementSpeed = object.movementSpeed;
   }
 
-  copyOmnisphereSound(file, volume, init, isPlaying = true){
+  copyOmnisphereSound(file, volume, init, isPlaying = true) {
     this.loadSound(file, this.audio, this.app.isMuted, this, null, true).then((sound) => {
       this.omniSphere.sound = sound;
       this.omniSphere.sound.name = file.name
       this.omniSphere.sound.volume.gain.value = volume;
       this.setAudioPosition(this.omniSphere);
       this.changeRadius();
-      if(!isPlaying || !this.app.isPlaying){
+      if (!isPlaying || !this.app.isPlaying) {
         this.stopSound();
         this.userSetPlay = false;
       } else {
@@ -1228,63 +1246,63 @@ export default class SoundObject {
     });
   }
 
-  copyConeSound(file, volume, lat, long, spread, uuid, isPlaying = true, doesExist = false){
+  copyConeSound(file, volume, lat, long, spread, uuid, isPlaying = true, doesExist = false) {
     this.loadSound(file, this.audio, this.app.isMuted, this, null, true).then((sound) => {
-        if(!doesExist){
-            if(this.objConeCache[uuid]){
-                volume = this.objConeCache[uuid].volume;
-                spread = this.objConeCache[uuid].spread;
-                lat = this.objConeCache[uuid].latitude;
-                long = this.objConeCache[uuid].longitude;
-                this.objConeCache[uuid] = {};
-            }
-            let numConesPrior = this.cones.length;
-            let cone = this.createCone(sound, null);
-            cone.file = file;
-            cone.filename = file.name;
-            cone.sound.volume.gain.value = volume
-            cone.sound.spread = spread;
-            if (!isPlaying || !this.app.isPlaying) {
-            this.stopConeSound(cone);
-            cone.material.color.setHex(0x8F8F8F);
-            cone.userSetPlay = false;
-            }
-            else {
-            cone.material.color.setHex(cone.baseColor.getHex());
-            cone.userSetPlay = true;
-            }
-            cone.lat = lat;
-            cone.long = long;
-            this.changeLength(cone);
-            this.changeWidth(cone);
-            cone.uuid = uuid;
-            console.log("adding cone to gui, 1002");
-            let addButton = document.getElementById('add-cone');
-            if (addButton) {
-                console.log(addButton.style.position, addButton.style.top);
-                if (this.app.isEditingObject) {
-                    addButton.style.top = "167.5px";
-                } else {
-                    addButton.style.top = "228.51px";
-                }
-                // 5%
-                addButton.firstChild.style.padding = '1.5% 8px';
-            }
-            this.gui.addCone(cone, false);
-            if(numConesPrior == 0){
-                this.app.interactiveCone = cone;
-            }
-            this.coneSounds[cone.uuid] = cone.sound;
-            this.pointConeMagic(cone, lat, long);
+      if (!doesExist) {
+        if (this.objConeCache[uuid]) {
+          volume = this.objConeCache[uuid].volume;
+          spread = this.objConeCache[uuid].spread;
+          lat = this.objConeCache[uuid].latitude;
+          long = this.objConeCache[uuid].longitude;
+          this.objConeCache[uuid] = {};
+        }
+        let numConesPrior = this.cones.length;
+        let cone = this.createCone(sound, null);
+        cone.file = file;
+        cone.filename = file.name;
+        cone.sound.volume.gain.value = volume
+        cone.sound.spread = spread;
+        if (!isPlaying || !this.app.isPlaying) {
+          this.stopConeSound(cone);
+          cone.material.color.setHex(0x8F8F8F);
+          cone.userSetPlay = false;
+        }
+        else {
+          cone.material.color.setHex(cone.baseColor.getHex());
+          cone.userSetPlay = true;
+        }
+        cone.lat = lat;
+        cone.long = long;
+        this.changeLength(cone);
+        this.changeWidth(cone);
+        cone.uuid = uuid;
+        console.log("adding cone to gui, 1002");
+        let addButton = document.getElementById('add-cone');
+        if (addButton) {
+          console.log(addButton.style.position, addButton.style.top);
+          if (this.app.isEditingObject) {
+            addButton.style.top = "167.5px";
+          } else {
+            addButton.style.top = "228.51px";
+          }
+          // 5%
+          addButton.firstChild.style.padding = '1.5% 8px';
+        }
+        this.gui.addCone(cone, false);
+        if (numConesPrior == 0) {
+          this.app.interactiveCone = cone;
+        }
+        this.coneSounds[cone.uuid] = cone.sound;
+        this.pointConeMagic(cone, lat, long);
       } else {
-            let index = this.cones.findIndex(cone => cone.uuid == uuid);
-            this.applySoundToCone(this.cones[index], sound);
-            this.setAudioPosition(this.cones[index])
+        let index = this.cones.findIndex(cone => cone.uuid == uuid);
+        this.applySoundToCone(this.cones[index], sound);
+        this.setAudioPosition(this.cones[index])
       }
     })
   }
 
-  disconnectSound(){
+  disconnectSound() {
     if (!this.omniSphere.sound.state.isAudioPaused) {
       this.omniSphere.sound.source.stop();
     }
@@ -1343,23 +1361,31 @@ export default class SoundObject {
   }
 
   checkPlayState(main) {
-    if (main.isPlaying) { // play
+    this.lastFileControlSource = "global";
+    this.lastLiveControlSource = "global";
+    this.localLiveOverride = false;
+
+    if (main.isPlaying) { // global play
       // fix: add play/pause logic for live input
-      if(this.isLiveInput && this.omniSphere.sound) {
-        if(this.omniSphere.sound.volume) {
-          this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume;
-          console.log("checkplaystate, current vol: " + this.omniSphere.sound.volume.gain.value);
+      if (this.isLiveInput && this.omniSphere.sound) {
+        // if live input is locally controlled, skip overriding
+        if (this.localLiveOverride) {
+          console.log("skipped")
+        } else {
+          if (this.omniSphere.sound.volume) {
+            this.omniSphere.sound.volume.gain.value = this.oldLiveInputVolume;
+          }
+          this.omniSphere.material.color.setHex(0xFFFFFF);
         }
-        this.omniSphere.material.color.setHex(0xFFFFFF);
-      }else if (this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused) {
+      } else if (this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused) {
         this.playSound(true);
         this.userSetPlay = true;
-      } 
-    //   else {
-    //     if(this.roomCode){
-    //         this.updatePlayStatus(null)
-    //     }
-    //   }
+      }
+      //   else {
+      //     if(this.roomCode){
+      //         this.updatePlayStatus(null)
+      //     }
+      //   }
       this.cones.forEach((cone) => {
         if (cone.sound.state.isAudioPaused) {
           this.playConeSound(cone, true);
@@ -1370,26 +1396,35 @@ export default class SoundObject {
       });
 
       this.omniSphere.material.color.setHex(0xFFFFFF);
+      // toggle btn for global play
+      const liveBtn = document.querySelector('#live-audio-playback');
+      const fileBtn = document.querySelector('#file-audio-playback');
+      if (liveBtn) liveBtn.src = './assets/models/pause.png';
+      if (fileBtn) fileBtn.src = './assets/models/pause.png';
     }
-    else { // pause
+    else { // global pause
       // fix: add play/pause logic for live input
-      if(this.isLiveInput && this.omniSphere.sound) {
-        if(this.omniSphere.sound.volume) {
-          if(this.omniSphere.sound.volume.gain.value > 0) {
-            this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
+      if (this.isLiveInput && this.omniSphere.sound) {
+        if (this.localLiveOverride) {
+          console.log("skipped");
+        } else {
+          if (this.omniSphere.sound.volume) {
+            if (this.omniSphere.sound.volume.gain.value > 0) {
+              this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
+            }
+            this.omniSphere.sound.volume.gain.value = 0;
+            console.log("checkplaystate, saved vol: " + this.omniSphere.sound.volume.gain.value);
           }
-          this.omniSphere.sound.volume.gain.value = 0;
-          console.log("checkplaystate, saved vol: " + this.omniSphere.sound.volume.gain.value);
+          this.omniSphere.material.color.setHex(0x8F8F8F);
         }
-        this.omniSphere.material.color.setHex(0x8F8F8F);
       } else if (this.omniSphere.sound && !this.omniSphere.sound.state.isAudioPaused) {
         this.stopSound(true);
         this.userSetPlay = false;
-      } 
+      }
       this.cones.forEach((cone) => {
         if (!cone.sound.state.isAudioPaused) {
 
-            // this should also update firebase details with this user as the last editor
+          // this should also update firebase details with this user as the last editor
           this.stopConeSound(cone, true);
           cone.userSetPlay = false;
         }
@@ -1399,37 +1434,42 @@ export default class SoundObject {
       //   this.stopSound(true);
       //   this.userSetPlay = false;
       // } 
-    //   else {
-    //     if(this.roomCode){
-    //         this.updatePlayStatus(false);
-    //     }
-    //   }
+      //   else {
+      //     if(this.roomCode){
+      //         this.updatePlayStatus(false);
+      //     }
+      //   }
       this.omniSphere.material.color.setHex(0x8F8F8F);
-      
-    }    
+      // toggle btn for global pause
+      const liveBtn = document.querySelector('#live-audio-playback');
+      const fileBtn = document.querySelector('#file-audio-playback');
+      if (liveBtn) liveBtn.src = './assets/models/play.png';
+      if (fileBtn) fileBtn.src = './assets/models/play.png';
+
+    }
   }
 
   toggleAppearance(main) {
     if (main.isPlaying) {
-        if ( this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused ) {
-          this.omniSphere.material.color.setHex(0x8F8F8F);
+      if (this.omniSphere.sound && this.omniSphere.sound.state.isAudioPaused) {
+        this.omniSphere.material.color.setHex(0x8F8F8F);
+      }
+      else {
+        this.omniSphere.material.color.setHex(0xFFFFFF);
+      }
+      this.cones.forEach((cone) => {
+        if (cone.sound && cone.sound.state.isAudioPaused) {
+          cone.material.color.set(0x8F8F8F);
         }
         else {
-          this.omniSphere.material.color.setHex(0xFFFFFF);
+          cone.material.color.setHex(cone.baseColor.getHex());
         }
-        this.cones.forEach((cone) => {
-          if ( cone.sound && cone.sound.state.isAudioPaused ) {
-            cone.material.color.set(0x8F8F8F);
-          }
-          else {
-            cone.material.color.setHex(cone.baseColor.getHex());
-          }
-        });
+      });
     } else {
-        this.omniSphere.material.color.setHex(0x8F8F8F);
-        this.cones.forEach((cone) => {
-            cone.material.color.setHex(0x8F8F8F);
-        });
+      this.omniSphere.material.color.setHex(0x8F8F8F);
+      this.cones.forEach((cone) => {
+        cone.material.color.setHex(0x8F8F8F);
+      });
     }
   }
 
@@ -1462,7 +1502,7 @@ export default class SoundObject {
       this.axisHelper.position.copy(pointOnTrajectory);
       this.altitudeHelper.position.y = 0;
 
-      if(this.trajectory == null && this.roomCode != null){
+      if (this.trajectory == null && this.roomCode != null) {
         this.dbRef.child('objects').child(this.containerObject.name).update({
           position: pointOnTrajectory,
           lastEdit: this.app.headKey.key
@@ -1546,27 +1586,27 @@ export default class SoundObject {
           this.gui.addCone(cone);
           this.pointConeMagic(cone, c.position.lat, c.position.long);
           let self = this;
-          if(this.roomCode){
+          if (this.roomCode) {
             let upload = this.stoRef.child('soundObjects/' + this.containerObject.name + '/' + cone.uuid + '/' + c.filename).put(file);
             console.log("uploading cone sound");
-            upload.on('state_changed', function(snapshot){
-                var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            console.log('Upload is ' + progress + '% done');
-            }, function(error){
-                console.log('Problem uploading file');
-            }, function(){
-                self.dbRef.child('objects').child(self.containerObject.name).child('cones').child(cone.uuid).update({
-                    type: "cone",
-                    parent: self.containerObject.name,
-                    uuid: cone.uuid,
-                    sound: cone.filename,
-                    volume: c.volume,
-                    spread: c.spread,
-                    longitude: cone.long,
-                    latitude: cone.lat,
-                    lastEdit: self.headKey,
-                    isPlaying: !cone.sound.state.isAudioPaused,
-                });
+            upload.on('state_changed', function (snapshot) {
+              var progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log('Upload is ' + progress + '% done');
+            }, function (error) {
+              console.log('Problem uploading file');
+            }, function () {
+              self.dbRef.child('objects').child(self.containerObject.name).child('cones').child(cone.uuid).update({
+                type: "cone",
+                parent: self.containerObject.name,
+                uuid: cone.uuid,
+                sound: cone.filename,
+                volume: c.volume,
+                spread: c.spread,
+                longitude: cone.long,
+                latitude: cone.lat,
+                lastEdit: self.headKey,
+                isPlaying: !cone.sound.state.isAudioPaused,
+              });
             });
           }
         });
@@ -1574,12 +1614,12 @@ export default class SoundObject {
     });
 
     this.movementSpeed = object.movementSpeed;
-    if(this.roomCode){
-        let updates = {
-            "position": object.position,
-        }
-        this.dbRef.child('objects').child(this.containerObject.name).update(updates);
-  
+    if (this.roomCode) {
+      let updates = {
+        "position": object.position,
+      }
+      this.dbRef.child('objects').child(this.containerObject.name).update(updates);
+
     }
   }
 }
