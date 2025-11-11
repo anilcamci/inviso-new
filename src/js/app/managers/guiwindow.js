@@ -686,38 +686,44 @@ export default class GUIWindow {
   addTrajectory(object) {
 	var elem = this.addElem('TRAJECTORY');
 	elem.id = 'trajectory';
-    let dbRef = this.dbRef;
+  let dbRef = this.dbRef;
 
-		// Fix: 
-		function changePositionOnTrajectory(dx) {
+	// set up init param for trajectory
+	if(object.trajectoryIsPlaying === undefined) {
+		object.trajectoryIsPlaying = !this.app.isPlaying ? false : false;
+	}
+	if(!this.app.isPlaying) {
+		object.trajectoryIsPlaying = false;
+	}
+
+	// Fix: 
+	function changePositionOnTrajectory(dx) {
+		if (object.trajectory) {
+			let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
+			// clamp to [0, 1]
+			position = Math.max(0, Math.min(1, position));
+			object.trajectoryClock = position;
 			
-			if (object.trajectory) {
+			// update the object position on the trajectory
+			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
+			object.setPosition(pointOnTrajectory);
+			
+			// Fix: pause movement by setting speed to 0
+			// only store speed once
+			if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
+				object.oldTrajectorySpeed = object.movementSpeed;
+				object.movementSpeed = 0;
+				object.calculateMovementSpeed();
+			}
 
-				let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
-				// clamp to [0, 1]
-				position = Math.max(0, Math.min(1, position));
-				object.trajectoryClock = position;
-				
-				// update the object position on the trajectory
-				let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
-				object.setPosition(pointOnTrajectory);
-				
-				// Fix: pause movement by setting speed to 0
-				// only store speed once
-				if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
-					object.oldTrajectorySpeed = object.movementSpeed;
-					object.movementSpeed = 0;
-					object.calculateMovementSpeed();
-				}
-
-				if (object.roomCode) {
-						object.dbRef.child('objects').child(object.containerObject.name).update({
-								trajectoryPosition: position,
-								position: pointOnTrajectory
-						});
-				}
+			if (object.roomCode) {
+					object.dbRef.child('objects').child(object.containerObject.name).update({
+							trajectoryPosition: position,
+							position: pointOnTrajectory
+					});
 			}
 		}
+	}
     // function changePositionOnTrajectory(dx) {
 		// // get the value of the number -  if it's been keyed to 0 or 1, handle those cases even more specially i guess
 		// var inputElement = document.querySelector('#trajectory .position .value');
@@ -816,7 +822,7 @@ export default class GUIWindow {
 	document.getElementById('delete-trajectory').style.marginLeft = "10px";
 
 
-	this.addParameter({
+	let speedDiv = this.addParameter({
 	  property: 'Speed',
 	  value: object.movementSpeed,
 	  // suffix:' m/s',
@@ -829,6 +835,38 @@ export default class GUIWindow {
 		object.updateSpeed(rawSpeed)
 	  }
 	}, elem);
+
+		// Add trajectory play/pause btn
+		var trajectoryPlayPause = document.createElement('span');
+		trajectoryPlayPause.className = 'valueSpan';
+		trajectoryPlayPause.style.position = 'absolute';
+		trajectoryPlayPause.style.right = '62px';
+		trajectoryPlayPause.style.cursor = 'pointer';
+
+		var trajectoryPlayIcon = document.createElement('img');
+		trajectoryPlayIcon.id = 'trajectory-playback';
+		trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+			'./assets/models/pause.png' :
+			'./assets/models/play.png';
+		trajectoryPlayIcon.style.height = '12px';
+		trajectoryPlayIcon.style.width = '12px';
+		trajectoryPlayIcon.style.opacity = '0.8';
+
+		trajectoryPlayPause.appendChild(trajectoryPlayIcon);
+		speedDiv.appendChild(trajectoryPlayPause);
+
+		let speedValueSpan = speedDiv.querySelector('.valueSpan');
+		if(speedValueSpan) speedValueSpan.appendChild(trajectoryPlayPause);
+
+		// add trajectory play/pause clicker handler
+		trajectoryPlayPause.addEventListener('click', () => {
+			object.trajectoryIsPlaying = !object.trajectoryIsPlaying;
+			trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+			'./assets/models/pause.png' :
+			'./assets/models/play.png';
+			object.lastTrajControlSource = "local";
+
+		})
 
     this.addParameter({
         property: 'Position',
@@ -1197,6 +1235,13 @@ export default class GUIWindow {
 
 	  // check if trajectory exists
 	  if (object.trajectory) {
+			// if traj exists, add playpause btn
+			let trajectoryPlayIcon = document.getElementById('trajectory-playback');
+			if(trajectoryPlayIcon) {
+				trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+					'./assets/models/pause.png' :
+					'./assets/models/play.png';
+			}
 		// check if option to add trajectory still exists
 		var addTrajectory = document.getElementById('add-trajectory');
 		if (addTrajectory) {
@@ -1992,26 +2037,25 @@ useAudioInput(deviceId) {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
     let constraints;
-    if (isSafari) {
-        constraints = { 
-            'audio': {
-							// disable audio effect for safari
-							deviceId: {exact: deviceId},
-							autoGainControl: false,
-							noiseSuppression: false,
-							echoCancellation: false,
-            }
-        };
-    } else {
+    // if (isSafari) {
+    //     constraints = { 
+    //         'audio': {
+		// 					// disable audio effect for safari
+		// 					deviceId: {exact: deviceId},
+		// 					autoGainControl: false,
+		// 					noiseSuppression: false,
+		// 					echoCancellation: false,
+    //         }
+    //     };
+    // } else {
         constraints = { 
             'audio': {
                 deviceId: {exact: deviceId},
                 autoGainControl: false,
                 noiseSuppression: false,
                 echoCancellation: false,
-                sampleRate: 44100
             }
-        };
+        // };
     }
 
     return new Promise((resolve, reject) => {
@@ -2274,7 +2318,7 @@ useAudioInput(deviceId) {
 		this.typeEvent.call = l.callback;
 		this.typeEvent.call(dx);
 
-		// add restore mvmt speed when typing input
+		// add restore mvmt speed when typing input 
 		if (e.target.parentNode.parentNode.className === "position" && 
 			this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed) {
 			this.obj.movementSpeed = this.obj.oldTrajectorySpeed;

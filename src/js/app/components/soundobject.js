@@ -47,12 +47,17 @@ export default class SoundObject {
     this.oldFilePlayStatus = true;
     this.oldFileName = null;
     this.oldSound = null;
-    // status check for last control source
+    // status check for last control source 
     this.lastFileControlSource = "global";
     this.lastLiveControlSource = "global";
 
     // flag when global play/pause
     this.localLiveOverride = false;
+
+    // trajectory status
+    this.trajectoryIsPlaying = false;
+    // status check for traj last control source
+    this.lastTrajControlSource = "global";
 
     this.liveInputDeviceId = 'None';
     this.stream = null;
@@ -1364,8 +1369,12 @@ export default class SoundObject {
     this.lastFileControlSource = "global";
     this.lastLiveControlSource = "global";
     this.localLiveOverride = false;
+    this.lastTrajControlSource = "global";
 
     if (main.isPlaying) { // global play
+      // update trajectory status
+      this.trajectoryIsPlaying = true;
+      this.lastTrajControlSource = "global";
       // fix: add play/pause logic for live input
       if (this.isLiveInput && this.omniSphere.sound) {
         // if live input is locally controlled, skip overriding
@@ -1401,8 +1410,13 @@ export default class SoundObject {
       const fileBtn = document.querySelector('#file-audio-playback');
       if (liveBtn) liveBtn.src = './assets/models/pause.png';
       if (fileBtn) fileBtn.src = './assets/models/pause.png';
+      // add traj btn
+      const trajBtn = document.querySelector('#trajectory-playback');
+      if(trajBtn) trajBtn.src = this.trajectoryIsPlaying ? './assets/models/pause.png' : './assets/models/play.png';
     }
     else { // global pause
+      // update trajectory status
+      this.trajectoryIsPlaying = false;
       // fix: add play/pause logic for live input
       if (this.isLiveInput && this.omniSphere.sound) {
         if (this.localLiveOverride) {
@@ -1413,7 +1427,6 @@ export default class SoundObject {
               this.oldLiveInputVolume = this.omniSphere.sound.volume.gain.value;
             }
             this.omniSphere.sound.volume.gain.value = 0;
-            console.log("checkplaystate, saved vol: " + this.omniSphere.sound.volume.gain.value);
           }
           this.omniSphere.material.color.setHex(0x8F8F8F);
         }
@@ -1445,7 +1458,9 @@ export default class SoundObject {
       const fileBtn = document.querySelector('#file-audio-playback');
       if (liveBtn) liveBtn.src = './assets/models/play.png';
       if (fileBtn) fileBtn.src = './assets/models/play.png';
-
+      // add traj btn
+      const trajBtn = document.querySelector('#trajectory-playback');
+      if(trajBtn) trajBtn.src = this.trajectoryIsPlaying ? './assets/models/pause.png' : './assets/models/play.png';
     }
   }
 
@@ -1474,7 +1489,12 @@ export default class SoundObject {
   }
 
   followTrajectory(play) {
-    if (this.trajectory && !this.isPaused && !this.isMuted && play) {
+    // Add trajectory play pause logic
+    // global play and last control was global OR local play and last control was local
+    const shouldMove = this.trajectory && !this.isPaused && !this.isMuted 
+      && ((play && this.lastTrajControlSource == "global") || (this.trajectoryIsPlaying && this.lastTrajControlSource == "local"));
+
+    if (shouldMove && this.movementSpeed !== 0) {
       this.trajectoryClock -= this.movementDirection * this.movementIncrement;
 
       if (this.trajectoryClock >= 1) {
