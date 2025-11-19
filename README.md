@@ -75,4 +75,4 @@ If your computer's selected audio output device has 16 or more channels, ambison
 
 ## Team
 Project leader, primary developer: Anıl Çamcı [<acamci@umich.edu> • http://anilcamci.com]<br/>
-Contributors: [2019-present] Julia Xu [juliawxu@umich.edu], Tanya Lai [tanyalai@umich.edu], [2016-2017] Kristine Lee [<khlee2@uic.edu>] (DevOps), Cody J. Roberts [<codyroberts@protonmail.com>] (DevOps), Angus Forbes [<angus@ucsc.edu>]
+Developers: [2025] Yun Ma <yunma@umich.edu>, [2024-2025] Michael Cella <mjcella@umich.edu>, [2019-2021] Tanya Lai <tanyalai@umich.edu>, Julia Xu <juliawxu@umich.edu>, [2016-2017] Kristine Lee <khlee2@uic.edu>, Cody J. Roberts <codyroberts@protonmail.com>, Angus Forbes <angus@ucsc.edu>
