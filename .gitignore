@@ -1,2 +1,13 @@
-# ignore node_modules
+# dependencies: node_modules
 node_modules/
+
+# build output
+build/
+dist/
+src/public/assets/js/
+src/public/assets/css/
+public/assets/js/
+public/assets/css/
+
+# log files
+npm-debug.log*
