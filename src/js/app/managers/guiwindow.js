@@ -703,23 +703,30 @@ export default class GUIWindow {
 			// clamp to [0, 1]
 			position = Math.max(0, Math.min(1, position));
 			object.trajectoryClock = position;
-			
-			// update the object position on the trajectory
-			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
-			object.setPosition(pointOnTrajectory);
+
+			// set flag to indicate manual positioning
+			object.isManuallyPositioning = true;
 			
 			// Fix: pause movement by setting speed to 0
 			// only store speed once
+			// Pause before updating position
 			if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
 				object.oldTrajectorySpeed = object.movementSpeed;
 				object.movementSpeed = 0;
 				object.calculateMovementSpeed();
 			}
 
+			// update the object position on the trajectory
+			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
+			object.setPosition(pointOnTrajectory);
+
+			object.containerObject.position.copy(pointOnTrajectory); // force alignment
+
 			if (object.roomCode) {
 					object.dbRef.child('objects').child(object.containerObject.name).update({
 							trajectoryPosition: position,
-							position: pointOnTrajectory
+							position: pointOnTrajectory,
+							movementSpeed: 0
 					});
 			}
 		}
@@ -2265,6 +2272,10 @@ useAudioInput(deviceId) {
 				this.obj.updateSpeed(this.obj.movementSpeed);
 				this.obj.oldTrajectorySpeed = null;
 			}
+			// clear manual positioning flag
+			if(this.obj) {
+				this.obj.isManuallyPositioning = false;
+			}
 	}
 
 	this.dragEvent = {};
@@ -2325,6 +2336,7 @@ useAudioInput(deviceId) {
 			this.obj.calculateMovementSpeed();
 			this.obj.updateSpeed(this.obj.movementSpeed);
 			this.obj.oldTrajectorySpeed = null;
+			this.obj.isManuallyPositioning = false;
 		}
 		
 		this.display();
