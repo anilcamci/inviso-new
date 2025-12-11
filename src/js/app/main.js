@@ -1468,6 +1468,12 @@ export default class Main {
 
     // move add cone button to position above
 
+    // Fix: hide nav arrows in edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'none';
+    });
+
     // slightly hacky fix: orbit controls tween works poorly from top view
     if (this.controls.threeControls.getPolarAngle() < 0.01) {
       this.controls.threeControls.constraint.rotateUp(-0.02);
@@ -1522,6 +1528,12 @@ export default class Main {
     }
     // re-enable panning
     this.controls.enablePan();
+
+    // Fix: show nav arrows when exiting edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'block';
+    });
 
     // re-enable copy-paste functionality
     // document.getElementById('copy').style.pointerEvents = 'auto';
