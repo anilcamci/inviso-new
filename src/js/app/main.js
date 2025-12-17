@@ -2086,6 +2086,21 @@ export default class Main {
           this.activeObject = null;
           break;
         case 'removeSoundTrajectory':
+          let parentObject = actionToUndo.mainObject.parentSoundObject;
+          // if parent is null or doesn't have containerObject, skip
+          if (!parentObject || !parentObject.containerObject) {
+              console.warn('Cannot restore trajectory, parent object doesnt exists');
+              cannotDo = true;
+              break;
+          }
+          // check if parent object is in the scene
+          let parentExists = this.soundObjects.includes(parentObject);
+          if (!parentExists) {
+              console.warn('Cannot restore trajectory, parent object not in scene');
+              cannotDo = true;
+              break;
+          }
+          
           this.addSoundTrajectory(actionToUndo.mainObject, actionToUndo.mainObject.parentSoundObject, false);
           this.setActiveObject(actionToUndo.mainObject.parentSoundObject);
           actionToUndo.mainObject.parentSoundObject.trajectory.setActive();

@@ -1598,6 +1598,12 @@ export default class GUIWindow {
 	if (this.obj.type === "SoundObject") {
 	  this.obj.disconnectSound();
 	  this.obj.filename = null;
+		// clear cached variables
+		this.obj.oldSound = null;
+		this.obj.oldFileName = null;
+		this.obj.oldFilePlayStatus = null;
+		this.obj.oldFileInputVolume = null;
+
 	  if(this.roomCode != null){
 		this.dbRef.child('objects').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1617,6 +1623,11 @@ export default class GUIWindow {
 
 	  var materialColor = this.app.isPlaying ? 0xFF1169 : 0x8F8F8F;
 	  this.obj.shape.material.color.setHex(materialColor);
+
+		// clear cached variable
+		this.obj.oldSound = null;
+    this.obj.oldFileName = null;
+		
 	  if(this.roomCode != null){
 		this.dbRef.child('zones').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1712,16 +1723,28 @@ async switchInputSource() {
 	} else {
 		// FILE->LIVE
 		//fix: check if curr file sound state exists
+		this.obj.prevOmniSphereSound = null;
 		if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
 			this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
 			this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
 			this.obj.oldFileName = this.obj.omniSphere.sound.name;
-		
+	
 			// pause without overwriting 
 			this.obj.stopSound(false, true);
 			this.obj.oldSound = this.obj.omniSphere.sound;
 			this.obj.omniSphere.sound = null;
 		}
+        
+		// if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
+		// 	this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
+		// 	this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+		// 	this.obj.oldFileName = this.obj.omniSphere.sound.name;
+		
+		// 	// pause without overwriting 
+		// 	this.obj.stopSound(false, true);
+		// 	this.obj.oldSound = this.obj.omniSphere.sound;
+		// 	this.obj.omniSphere.sound = null;
+		// }
 		
 		this.getLiveInputDevices();
 

@@ -1205,9 +1205,22 @@ export default class SoundObject {
       this.omniSphere.material.color.setHex(materialColor);
 
       this.loadSound(this.file, this.audio, this.app.isMuted, this, this.prevOmniSphereSound).then((sound) => {
-        this.omniSphere.sound = sound;
+      this.omniSphere.sound = sound;
+      // restore name and volume if prevOmniSphereSound exists
+      if (this.prevOmniSphereSound && this.prevOmniSphereSound.name) {
         this.omniSphere.sound.name = this.prevOmniSphereSound.name;
+      } else {
+        this.omniSphere.sound.name = this.file.name;
+      }
+      
+      if (this.prevOmniSphereSound && this.prevOmniSphereSound.volume) {
         this.omniSphere.sound.volume.gain.value = this.prevOmniSphereSound.volume.gain.value;
+      }
+
+      // this.loadSound(this.file, this.audio, this.app.isMuted, this, this.prevOmniSphereSound).then((sound) => {
+      //   this.omniSphere.sound = sound;
+      //   this.omniSphere.sound.name = this.prevOmniSphereSound.name;
+      //   this.omniSphere.sound.volume.gain.value = this.prevOmniSphereSound.volume.gain.value;
         this.setAudioPosition(this.omniSphere);
 
         if (!this.userSetPlay) {
