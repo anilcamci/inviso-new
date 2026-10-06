@@ -747,7 +747,9 @@ export default class SoundZone {
       position: this.containerObject.position,
       points: this.splinePoints,
       filename: this.filename,
-      volume: this.volume
+      volume: this.volume,
+      scale: this.zoneScale,
+      rotation: this.containerObject.rotation.y
     };
     return JSON.stringify(object);
   }
@@ -755,6 +757,17 @@ export default class SoundZone {
   fromJSON(json, importedData) {
     const object = JSON.parse(json);
     this.containerObject.position.copy(object.position);
+    
+    // Older export files have no scale/rotation: skip and keep defaults.
+    if (typeof object.scale === 'number') {
+      // The saved points are already at this scale, so only restore the
+      // value. Calling updateZoneScale() here would scale the shape twice.
+      this.zoneScale = object.scale;
+    }
+    if (typeof object.rotation === 'number') {
+      this.containerObject.rotation.y = object.rotation;
+    }
+
     let file = importedData[object.filename];
     if (file) {
       this.loadSound(file, this.audio, false);
