@@ -686,38 +686,51 @@ export default class GUIWindow {
   addTrajectory(object) {
 	var elem = this.addElem('TRAJECTORY');
 	elem.id = 'trajectory';
-    let dbRef = this.dbRef;
+  let dbRef = this.dbRef;
 
-		// Fix: 
-		function changePositionOnTrajectory(dx) {
+	// set up init param for trajectory
+	if(object.trajectoryIsPlaying === undefined) {
+		object.trajectoryIsPlaying = !this.app.isPlaying ? false : false;
+	}
+	if(!this.app.isPlaying) {
+		object.trajectoryIsPlaying = false;
+	}
+
+	// Fix: 
+	function changePositionOnTrajectory(dx) {
+		if (object.trajectory) {
+			let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
+			// clamp to [0, 1]
+			position = Math.max(0, Math.min(1, position));
+			object.trajectoryClock = position;
+
+			// set flag to indicate manual positioning
+			object.isManuallyPositioning = true;
 			
-			if (object.trajectory) {
+			// Fix: pause movement by setting speed to 0
+			// only store speed once
+			// Pause before updating position
+			if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
+				object.oldTrajectorySpeed = object.movementSpeed;
+				object.movementSpeed = 0;
+				object.calculateMovementSpeed();
+			}
 
-				let position = parseFloat(object.trajectoryClock) + parseFloat(dx/100);
-				// clamp to [0, 1]
-				position = Math.max(0, Math.min(1, position));
-				object.trajectoryClock = position;
-				
-				// update the object position on the trajectory
-				let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
-				object.setPosition(pointOnTrajectory);
-				
-				// Fix: pause movement by setting speed to 0
-				// only store speed once
-				if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
-					object.oldTrajectorySpeed = object.movementSpeed;
-					object.movementSpeed = 0;
-					object.calculateMovementSpeed();
-				}
+			// update the object position on the trajectory
+			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
+			object.setPosition(pointOnTrajectory);
 
-				if (object.roomCode) {
-						object.dbRef.child('objects').child(object.containerObject.name).update({
-								trajectoryPosition: position,
-								position: pointOnTrajectory
-						});
-				}
+			object.containerObject.position.copy(pointOnTrajectory); // force alignment
+
+			if (object.roomCode) {
+					object.dbRef.child('objects').child(object.containerObject.name).update({
+							trajectoryPosition: position,
+							position: pointOnTrajectory,
+							movementSpeed: 0
+					});
 			}
 		}
+	}
     // function changePositionOnTrajectory(dx) {
 		// // get the value of the number -  if it's been keyed to 0 or 1, handle those cases even more specially i guess
 		// var inputElement = document.querySelector('#trajectory .position .value');
@@ -816,7 +829,7 @@ export default class GUIWindow {
 	document.getElementById('delete-trajectory').style.marginLeft = "10px";
 
 
-	this.addParameter({
+	let speedDiv = this.addParameter({
 	  property: 'Speed',
 	  value: object.movementSpeed,
 	  // suffix:' m/s',
@@ -829,6 +842,38 @@ export default class GUIWindow {
 		object.updateSpeed(rawSpeed)
 	  }
 	}, elem);
+
+		// Add trajectory play/pause btn
+		var trajectoryPlayPause = document.createElement('span');
+		trajectoryPlayPause.className = 'valueSpan';
+		trajectoryPlayPause.style.position = 'absolute';
+		trajectoryPlayPause.style.right = '62px';
+		trajectoryPlayPause.style.cursor = 'pointer';
+
+		var trajectoryPlayIcon = document.createElement('img');
+		trajectoryPlayIcon.id = 'trajectory-playback';
+		trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+			'./assets/models/pause.png' :
+			'./assets/models/play.png';
+		trajectoryPlayIcon.style.height = '12px';
+		trajectoryPlayIcon.style.width = '12px';
+		trajectoryPlayIcon.style.opacity = '0.8';
+
+		trajectoryPlayPause.appendChild(trajectoryPlayIcon);
+		speedDiv.appendChild(trajectoryPlayPause);
+
+		let speedValueSpan = speedDiv.querySelector('.valueSpan');
+		if(speedValueSpan) speedValueSpan.appendChild(trajectoryPlayPause);
+
+		// add trajectory play/pause clicker handler
+		trajectoryPlayPause.addEventListener('click', () => {
+			object.trajectoryIsPlaying = !object.trajectoryIsPlaying;
+			trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+			'./assets/models/pause.png' :
+			'./assets/models/play.png';
+			object.lastTrajControlSource = "local";
+
+		})
 
     this.addParameter({
         property: 'Position',
@@ -1197,6 +1242,13 @@ export default class GUIWindow {
 
 	  // check if trajectory exists
 	  if (object.trajectory) {
+			// if traj exists, add playpause btn
+			let trajectoryPlayIcon = document.getElementById('trajectory-playback');
+			if(trajectoryPlayIcon) {
+				trajectoryPlayIcon.src = object.trajectoryIsPlaying ?
+					'./assets/models/pause.png' :
+					'./assets/models/play.png';
+			}
 		// check if option to add trajectory still exists
 		var addTrajectory = document.getElementById('add-trajectory');
 		if (addTrajectory) {
@@ -1546,6 +1598,12 @@ export default class GUIWindow {
 	if (this.obj.type === "SoundObject") {
 	  this.obj.disconnectSound();
 	  this.obj.filename = null;
+		// clear cached variables
+		this.obj.oldSound = null;
+		this.obj.oldFileName = null;
+		this.obj.oldFilePlayStatus = null;
+		this.obj.oldFileInputVolume = null;
+
 	  if(this.roomCode != null){
 		this.dbRef.child('objects').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1565,6 +1623,11 @@ export default class GUIWindow {
 
 	  var materialColor = this.app.isPlaying ? 0xFF1169 : 0x8F8F8F;
 	  this.obj.shape.material.color.setHex(materialColor);
+
+		// clear cached variable
+		this.obj.oldSound = null;
+    this.obj.oldFileName = null;
+		
 	  if(this.roomCode != null){
 		this.dbRef.child('zones').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1581,9 +1644,9 @@ export default class GUIWindow {
 	}
   }
 
-// Debug:
 async switchInputSource() {
 	if (this.obj.isLiveInput) {
+		// LIVE->FILE
 		// Switch to file input
 		this.obj.isLiveInput = false;
 		var fileFound = false;
@@ -1602,7 +1665,10 @@ async switchInputSource() {
 		
 		// disconnect live input audio nodes
 		if(this.obj.omniSphere.sound) {
-			this.obj.oldLiveInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			// fix: store volume if not 0 (not muted for global play/pause)
+			if(this.obj.omniSphere.sound.volume.gain.value > 0) {
+				this.obj.oldLiveInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			}
 			try {
 				const liveSound = this.obj.omniSphere.sound;
 				if (liveSound.source) {
@@ -1620,34 +1686,23 @@ async switchInputSource() {
 
 		// restore file sound if exists
 		if (fileFound) {
-			try {
-				this.obj.omniSphere.sound = this.obj.oldSound;
-				this.obj.oldSound = null;
-
-				this.obj.omniSphere.sound.volume.gain.value = this.obj.oldFileInputVolume;
-				this.obj.changeRadius();
-				
-				// check if is playing
-				if (this.app.isPlaying) {
-					if (this.obj.omniSphere.sound.state.isAudioPaused) {
-						this.obj.playSound();
-					}
-					this.obj.omniSphere.material.color.setHex(0xFFFFFF);
-				} else {
-					if (!this.obj.omniSphere.sound.state.isAudioPaused) {
-						this.obj.stopSound();
-					}
-					this.obj.omniSphere.material.color.setHex(0x8F8F8F);
-				}
-			} catch (error) {
-				console.error("Error restoring file input: ", error);
-				fileFound = false;
-				this.obj.omniSphere.sound = null;
-				this.obj.oldSound = null;
-			}
-		} else {
+			this.obj.omniSphere.sound = this.obj.oldSound;
 			this.obj.oldSound = null;
-		}
+		
+			const globalPlay     = this.app.isPlaying;
+			const fileWasPlaying = !!this.obj.oldFilePlayStatus;
+			const lastControl    = this.obj.lastFileControlSource || "global";
+			const shouldPlay     = (lastControl === "global") ? globalPlay : fileWasPlaying;
+		
+			// restore without overwriting
+			if (shouldPlay) {
+				this.obj.playSound(false, true);
+				this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+			} else {
+				this.obj.stopSound(false, true);
+				this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+			}
+		}		
 		
 		await this.getFileInput();
 		
@@ -1666,25 +1721,70 @@ async switchInputSource() {
 				fileTextStatusElement.innerHTML = this.obj.oldFileName ? this.obj.oldFileName : 'None';
 		}
 	} else {
-		//debug: check if curr file sound state exists
-			if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.name) {
-				// store playback state
-				this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
-				this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
-				this.obj.oldFileName = this.obj.omniSphere.sound.name;
-				// pause file playback
-				if (!this.obj.omniSphere.sound.state.isAudioPaused) {
-					this.obj.stopSound(); // This pauses and saves the position
-				}
-				// store obj
-				this.obj.oldSound = this.obj.omniSphere.sound;
-				// clear curr reference
-				this.obj.omniSphere.sound = null;
+		// FILE->LIVE
+		//fix: check if curr file sound state exists
+		this.obj.prevOmniSphereSound = null;
+		if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
+			this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
+			this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+			this.obj.oldFileName = this.obj.omniSphere.sound.name;
+	
+			// pause without overwriting 
+			this.obj.stopSound(false, true);
+			this.obj.oldSound = this.obj.omniSphere.sound;
+			this.obj.omniSphere.sound = null;
+		}
+        
+		// if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
+		// 	this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
+		// 	this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+		// 	this.obj.oldFileName = this.obj.omniSphere.sound.name;
+		
+		// 	// pause without overwriting 
+		// 	this.obj.stopSound(false, true);
+		// 	this.obj.oldSound = this.obj.omniSphere.sound;
+		// 	this.obj.omniSphere.sound = null;
+		// }
+		
+		this.getLiveInputDevices();
+
+		// restore live input based on last control
+		const globalPlay = this.app.isPlaying;
+    const wasLiveMuted = this.obj.liveInputIsMuted;
+    const lastControl = this.obj.lastLiveControlSource || "global";
+
+    // console.log("switch->live: ", { globalPlay, wasLiveMuted, lastControl });
+
+    const shouldPlay =
+      lastControl === "global" ? globalPlay : !wasLiveMuted;
+
+    if (
+      this.obj.omniSphere &&
+      this.obj.omniSphere.sound &&
+      this.obj.omniSphere.sound.volume
+    ) {
+      if (shouldPlay) {
+				// if global = play but stored volume is 0, restore to 1
+				const restoreVolume =
+					this.obj.oldLiveInputVolume && this.obj.oldLiveInputVolume > 0
+						? this.obj.oldLiveInputVolume
+						: 1.0;
+
+				console.log("stored volume: " + restoreVolume);
+			
+				this.obj.omniSphere.sound.volume.gain.value = restoreVolume;
+				this.obj.liveInputIsMuted = false;
+				this.obj.omniSphere.material.color.setHex(0xffffff);
+			} else {
+				this.obj.omniSphere.sound.volume.gain.value = 0;
+				this.obj.liveInputIsMuted = true;
+				this.obj.omniSphere.material.color.setHex(0x8f8f8f);
 			}
-      	this.getLiveInputDevices();
+    }
+
 		let livePlaybackElement = this.container.querySelector('#omnisphere-sound-loader #live-audio-playback')
 		livePlaybackElement.style.display = 'inline-block';
-    }
+	}
 }
 
 getFileInput() {
@@ -1711,7 +1811,7 @@ getFileInput() {
     });
 }
 
-getLiveInputDevices() {
+async getLiveInputDevices() {
     // Stop current file
     if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.name) {
         let playStatus = this.obj.oldFilePlayStatus;
@@ -1764,25 +1864,37 @@ getLiveInputDevices() {
 
         // add event listener for play/pause
         playPauseElement.addEventListener('click', () => {
-            const sound = this.obj.omniSphere.sound;
-            if (!sound || !sound.volume || !sound.volume.gain) {
-                console.error('Sound or volume gain is not properly initialized.');
-                return;
-            }
+					const sound = this.obj.omniSphere.sound;
+					if (!sound || !sound.volume || !sound.volume.gain) {
+						console.error('Sound or volume gain is not properly initialized.');
+						return;
+					}
 
-            // toggle the muted state
-            this.obj.liveInputIsMuted = !this.obj.liveInputIsMuted;
+					// toggle the muted state
+					this.obj.liveInputIsMuted = !this.obj.liveInputIsMuted;
 
-            if (this.obj.liveInputIsMuted) {
-                // set gain to 0
-                sound.volume.gain.value = 0;
-                playPauseIcon.src = 'http://localhost:8080/assets/models/play.png';
-            } else {
-                // set gain to 1
-                sound.volume.gain.value = 1;
-                playPauseIcon.src = 'http://localhost:8080/assets/models/pause.png';
-            }
-        });
+					const isMuted = this.obj.liveInputIsMuted;
+					
+					if (isMuted) {
+						// set gain to 0
+						sound.volume.gain.value = 0;
+						playPauseIcon.src = './assets/models/play.png';
+						// debug: update color when locally paused
+						this.obj.omniSphere.material.color.setHex(0x8F8F8F);
+					} else {
+						const restoreVolume = this.obj.oldLiveInputVolume > 0
+						? this.obj.oldLiveInputVolume
+						: 1.0;
+
+						sound.volume.gain.value = restoreVolume;
+						playPauseIcon.src = './assets/models/pause.png';
+						this.obj.omniSphere.material.color.setHex(0xFFFFFF);
+					}
+					
+					this.obj.lastLiveControlSource = "local";
+					this.obj.localLiveOverride = true;
+				
+			});
     }
 
     // Get audio permission
@@ -1905,12 +2017,36 @@ getLiveInputDevices() {
       this.obj.liveInputDeviceId = targetDevice;
       try {
 		await this.useAudioInput(targetDevice);
-		if (this.obj && this.obj.omniSphere && this.obj.omniSphere.sound) {
-		  this.obj.omniSphere.sound.volume.gain.value = this.obj.oldLiveInputVolume;
-		  this.obj.changeRadius();
-		} else {
-		  console.error("Error: omniSphere or sound is undefined");
-		}
+
+		// retore volume after promise resolved
+		const sound =
+			this.obj && this.obj.omniSphere && this.obj.omniSphere.sound
+				? this.obj.omniSphere.sound
+				: null;
+
+    if (!sound || !sound.volume) {
+      return;
+    }
+
+    const globalPlay = this.app.isPlaying;
+    const wasLiveMuted = this.obj.liveInputIsMuted;
+    const lastControl = this.obj.lastLiveControlSource || "global";
+    const oldLiveVol = this.obj.oldLiveInputVolume || 1.0;
+
+    const shouldPlay = lastControl === "global" ? globalPlay : !wasLiveMuted;
+
+    // apply to node
+    sound.volume.gain.value = shouldPlay ? oldLiveVol : 0;
+    this.obj.liveInputIsMuted = !shouldPlay;
+    this.obj.omniSphere.material.color.setHex(shouldPlay ? 0xFFFFFF : 0x8F8F8F);
+
+    // update live btn
+    const liveBtn = document.querySelector("#live-audio-playback");
+    if (liveBtn) {
+      liveBtn.src = shouldPlay
+        ? "./assets/models/pause.png"
+        : "./assets/models/play.png";
+    }
 	  } catch (error) {
 		console.error("Error using audio input: ", error);
 	  }
@@ -1931,26 +2067,25 @@ useAudioInput(deviceId) {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
     let constraints;
-    if (isSafari) {
+    // if (isSafari) {
+    //     constraints = { 
+    //         'audio': {
+		// 					// disable audio effect for safari
+		// 					deviceId: {exact: deviceId},
+		// 					autoGainControl: false,
+		// 					noiseSuppression: false,
+		// 					echoCancellation: false,
+    //         }
+    //     };
+    // } else {
         constraints = { 
             'audio': {
-							// disable audio effect for safari
-							deviceId: deviceId,
-							autoGainControl: false,
-							noiseSuppression: false,
-							echoCancellation: false,
-            }
-        };
-    } else {
-        constraints = { 
-            'audio': {
-                deviceId: deviceId,
+                deviceId: {exact: deviceId},
                 autoGainControl: false,
                 noiseSuppression: false,
                 echoCancellation: false,
-                sampleRate: 44100
             }
-        };
+        // };
     }
 
     return new Promise((resolve, reject) => {
@@ -1963,11 +2098,24 @@ useAudioInput(deviceId) {
 				let numChannels = this.liveInputDevicesAndChannels[deviceId] || 2;
 				obj.getMediaStream(stream, numChannels, deviceId, obj.microphoneChannel, this.obj);
         //    	obj.getMediaStream(stream, 1, deviceId, obj.microphoneChannel, this.obj);
+				// fix: check global play/pause for live input
+				if(!this.app.isPlaying) {
+					if(obj.omniSphere.sound && obj.omniSphere.sound.volume) {
+						obj.omniSphere.sound.volume.gain.value = 0;
+					}
+					obj.omniSphere.material.color.setHex(0x8F8F8F);
+				}else {
+					if(obj.omniSphere.sound && obj.omniSphere.sound.volume) {
+						obj.omniSphere.sound.volume.gain.value = 0;
+						console.log("current liveinptu volume:" + obj.omniSphere.sound.volume.gain.value);
+					}
+					obj.omniSphere.material.color.setHex(0xFFFFFF);
+				}
 				// debug: reflect color
 				if (this.app.isPlaying && !obj.liveInputIsMuted) {
 					obj.omniSphere.material.color.setHex(0xFFFFFF);
 				} else {
-						obj.omniSphere.material.color.setHex(0x8F8F8F);
+					obj.omniSphere.material.color.setHex(0x8F8F8F);
 				}
 			}
             resolve(); // Resolve the Promise
@@ -2147,6 +2295,10 @@ useAudioInput(deviceId) {
 				this.obj.updateSpeed(this.obj.movementSpeed);
 				this.obj.oldTrajectorySpeed = null;
 			}
+			// clear manual positioning flag
+			if(this.obj) {
+				this.obj.isManuallyPositioning = false;
+			}
 	}
 
 	this.dragEvent = {};
@@ -2200,13 +2352,14 @@ useAudioInput(deviceId) {
 		this.typeEvent.call = l.callback;
 		this.typeEvent.call(dx);
 
-		// add restore mvmt speed when typing input
+		// add restore mvmt speed when typing input 
 		if (e.target.parentNode.parentNode.className === "position" && 
 			this.obj && this.obj.trajectory && this.obj.oldTrajectorySpeed) {
 			this.obj.movementSpeed = this.obj.oldTrajectorySpeed;
 			this.obj.calculateMovementSpeed();
 			this.obj.updateSpeed(this.obj.movementSpeed);
 			this.obj.oldTrajectorySpeed = null;
+			this.obj.isManuallyPositioning = false;
 		}
 		
 		this.display();
@@ -2661,30 +2814,4 @@ addSwipeEvents(div, title, objectType) {
 	parent.defaultValue = text;
 	// parent.appendChild(document.createTextNode(text));
   }
-//   setupHelpBubble(triggerId, helpId, topOffset, sideOffset, rightOffset = true) {	
-//     const triggerElement = document.getElementById(triggerId);
-//     const helpElement = document.getElementById(helpId)
-
-// 	try {
-// 		triggerElement.addEventListener('mouseover', function() {
-// 			var tooltips = document.getElementById('tooltips');
-// 			if (tooltips.value === 'true') {
-// 			  helpElement.style.display = 'block';
-// 			  helpElement.style.position = 'fixed';
-// 			  if ( rightOffset === true ) {
-// 				  helpElement.style.right = sideOffset + 'px';
-// 			  }
-// 			  else {
-// 				  helpElement.style.left = sideOffset + 'px';
-// 			  }
-// 			  helpElement.style.top = topOffset + 'px';
-// 			}
-// 		  });
-	  
-// 		  triggerElement.addEventListener('mouseout', function() {
-// 			helpElement.style.display = 'none';
-// 		  });
-// 	}
-// 	catch (e) {}
-//   }
 }
