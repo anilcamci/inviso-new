@@ -54,8 +54,8 @@ export default class SoundObject {
     // flag when global play/pause
     this.localLiveOverride = false;
 
-    // trajectory status
-    this.trajectoryIsPlaying = false;
+    // trajectory status (mirrors global play until the user uses the local button)
+    this.trajectoryIsPlaying = this.app.isPlaying;
     // status check for traj last control source
     this.lastTrajControlSource = "global";
 
@@ -1643,7 +1643,8 @@ export default class SoundObject {
   toJSON() {
     return JSON.stringify({
       filename: (this.omniSphere.sound && this.omniSphere.sound && this.omniSphere.sound.name) || null,
-      volume: (this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.volume.gain.value) || null,
+      // explicit check so a volume of 0 is saved as 0, not as null
+      volume: (this.omniSphere && this.omniSphere.sound && this.omniSphere.sound.volume) ? this.omniSphere.sound.volume.gain.value : null,
       position: this.containerObject.position,
       movementSpeed: this.movementSpeed,
       trajectory: (this.trajectory && this.trajectory.points) || null,
@@ -1670,7 +1671,8 @@ export default class SoundObject {
     this.raycastSphere.position.copy(object.position);
     this.axisHelper.position.copy(object.position);
 
-    if (object.filename && object.volume) {
+    // typeof check so a saved volume of 0 still loads the sound
+    if (object.filename && typeof object.volume === 'number') {
       const file = importedData[object.filename];
       if (file) {
         this.loadSound(file, this.audio, false, this).then((sound) => {

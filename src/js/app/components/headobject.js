@@ -19,6 +19,10 @@ export default class HeadObject {
     this.movementSpeed = Config.soundObject.defaultMovementSpeed;
     this.movementDirection = Config.soundObject.defaultMovementDirection;
     this.movementIncrement = null;
+    // trajectory play/pause state, same logic as SoundObject:
+    // mirrors global play until the local button is used
+    this.trajectoryIsPlaying = main.isPlaying;
+    this.lastTrajControlSource = "global";
     this.oldPosition = null;
     this.hasBeenMoved = false;
     this.lastPathPosition = new THREE.Vector3();
@@ -138,8 +142,22 @@ export default class HeadObject {
     }
   }
 
+  // Called when global play/pause is pressed: global takes control again
+  syncTrajectoryToGlobal(main) {
+    this.trajectoryIsPlaying = main.isPlaying;
+    this.lastTrajControlSource = "global";
+    if (this.app.activeObject === this) {
+      const trajBtn = document.querySelector('#trajectory-playback');
+      if (trajBtn) trajBtn.src = this.trajectoryIsPlaying ? './assets/models/pause.png' : './assets/models/play.png';
+    }
+  }
+
   followTrajectory(play, otherHead = null) {
-    if (this.trajectory && play) {
+    // global play and last control was global OR local play and last control was local
+    const shouldMove = this.trajectory
+      && ((play && this.lastTrajControlSource == "global")
+        || (this.trajectoryIsPlaying && this.lastTrajControlSource == "local"));
+    if (shouldMove) {
       this.trajectoryClock -= this.movementDirection * this.movementIncrement;
 
       if (this.trajectoryClock >= 1) {

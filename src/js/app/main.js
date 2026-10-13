@@ -1819,6 +1819,8 @@ export default class Main {
     }
 
     [].concat(this.soundObjects, this.soundZones).forEach(sound => sound.checkPlayState(this));
+    // head trajectory follows the global state again after global play/pause
+    if (this.headObject) this.headObject.syncTrajectoryToGlobal(this);
     [].concat(this.soundObjects, this.soundZones).forEach(obj => obj.toggleAppearance(this))
     if (this.roomCode != null) {
       // TODO: must edit the cloud function on room deletion to also remove this globalIsPlaying value

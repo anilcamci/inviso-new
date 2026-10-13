@@ -236,8 +236,8 @@ export default class GUIWindow {
 
 	  function changeVolume(dx) {
 		if (object.omniSphere.sound && object.omniSphere.sound.volume) {
-		  // clamp value to (0.05, 2)
-		  const vol = Math.max(Math.min(object.omniSphere.sound.volume.gain.value + dx/50, 2), 0.05);
+		  // clamp value to (0.01, 2)
+		  const vol = Math.max(Math.min(object.omniSphere.sound.volume.gain.value + dx/50, 2), 0.01);
 		  object.omniSphere.sound.volume.gain.value = vol;
 		  if ( object.isLiveInput == false ) {
 			  object.oldFileInputVolume = vol;
@@ -480,8 +480,8 @@ export default class GUIWindow {
 	function changeVolume(dx) {
 	  if (cone.sound && cone.sound.volume) {
 
-		// clamp value to (0.05, 2)
-		const volume = Math.max(Math.min(cone.sound.volume.gain.value + dx/50, 2), 0.05);
+		// clamp value to (0.01, 2)
+		const volume = Math.max(Math.min(cone.sound.volume.gain.value + dx/50, 2), 0.01);
 
 		if (volume !== cone.sound.volume.gain.value) {
 		  // modify cone length
@@ -688,12 +688,12 @@ export default class GUIWindow {
 	elem.id = 'trajectory';
   let dbRef = this.dbRef;
 
-	// set up init param for trajectory
+	// This function runs every
+	// time the object is (re)selected, and resetting would undo the user's
+	// local trajectory play/pause choice. Global play/pause already syncs
+	// trajectoryIsPlaying through checkPlayState / syncTrajectoryToGlobal.
 	if(object.trajectoryIsPlaying === undefined) {
-		object.trajectoryIsPlaying = !this.app.isPlaying ? false : false;
-	}
-	if(!this.app.isPlaying) {
-		object.trajectoryIsPlaying = false;
+		object.trajectoryIsPlaying = this.app.isPlaying;
 	}
 
 	// Fix: 
@@ -1388,6 +1388,13 @@ export default class GUIWindow {
         // && (speed.innerHTML != 0 && object.movementSpeed != 0) || (speed.innerHTML == 0 && object.movementSpeed != 0)
 		if (speed) {
 		  this.replaceTextContent(speed, object.movementSpeed);
+		}
+
+		// keep the Position number in sync with where the head is on its
+		// trajectory (same as updateObjectGUI does for sound objects)
+		let position = this.container.querySelector('.position .value');
+		if (position) {
+		  this.replaceTextContent(position, object.trajectoryClock);
 		}
 	  }
 	}

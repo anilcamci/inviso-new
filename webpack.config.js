@@ -25,6 +25,14 @@ module.exports = {
   module: {
     rules: [
       {
+        // ambisonics and its old IRCAM dependencies (serve-sofa-hrir,
+        // fractional-delay, ...) declare invalid "exports" fields that
+        // webpack 5 rejects. Ignore "exports" only for imports made from
+        // inside ambisonics' dependency tree; everything else is unaffected.
+        test: /[\\/]node_modules[\\/](ambisonics|serve-sofa-hrir|fractional-delay)[\\/]/,
+        resolve: { exportsFields: [] }
+      },
+      {
         test: /\.scss$/,
         use: [
           "style-loader",
