@@ -2,7 +2,7 @@
 // this app uses 0.87.1 of three.js
 import * as THREE from 'three';
 import TWEEN from 'tween.js';
-import OBJLoader from './../utils/objloader';
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import Helpers from './../utils/helpers';
 import HeadObject from './components/headobject';
 import SoundObject from './components/soundobject';
@@ -31,10 +31,28 @@ import SoundSearch from './managers/SoundSearch';
 import Config from './../data/config';
 
 // Firebase
-import * as firebase from "firebase/app";
-import "firebase/auth";
-import "firebase/database";
-import "firebase/storage";
+import { initializeApp } from "firebase/app";
+import { 
+  getDatabase, 
+  ref as dbRef, 
+  child, 
+  update, 
+  get,
+  remove,
+  set,
+  onChildChanged,
+  onChildAdded,
+  onChildRemoved,
+  push,
+  onDisconnect
+} from "firebase/database";
+
+import { 
+  getDownloadURL,
+  getStorage, 
+  ref as storageRef
+} from "firebase/storage";
+
 
 const ambisonics = require('ambisonics');
 
@@ -46,14 +64,16 @@ const TOLERANCE = 0.000001;
 // starts the loading process and renders the main loop
 export default class Main {
   constructor(container) {
-    firebase.initializeApp(Config.firebaseConfig);
-    // this.functions = firebase.functions();
-    this.database = firebase.database();
-    this.storage = firebase.storage();
-    this.dbRef = this.database.ref();
-    this.stoRef = this.storage.ref();
+  // Initialize Firebase
+  const app = initializeApp(Config.firebaseConfig);
+  // Get database + storage instances
+  this.database = getDatabase(app);
+  this.storage = getStorage(app);
+  // Root references 
+  this.dbRef = null;
+  this.stoRef = null;
+
     this.inviteCode = null;
-    OBJLoader(THREE);
     this.roomCode = null;
     this.overrideTriangulate();
     this.setupAudio();
@@ -168,7 +188,7 @@ export default class Main {
     // Components instantiation
     this.camera = new Camera(this.renderer.threeRenderer);
     this.controls = new Controls(this.camera.threeCamera, document);
-    this.loader = new THREE.OBJLoader();
+    this.loader = new OBJLoader();
     this.light = new Light(this.scene);
 
     // Create and place lights in scene
@@ -278,12 +298,12 @@ export default class Main {
           self.audio.context.resume();
         }
         document.getElementById('room-input').style.display = 'none';
-        self.dbRef = self.database.ref(roomCode);
-        self.stoRef = self.storage.ref().child(roomCode);
+        self.dbRef = dbRef(self.database, roomCode);
+        self.stoRef = storageRef(self.storage, roomCode);
         self.setupFirebase();
-        self.database.ref(self.inviteCode).remove();
+        remove(dbRef(self.database, self.inviteCode));
         if(oldRoomCode && oldHeadKey){
-            self.database.ref(oldRoomCode).child('users').child(oldHeadKey).remove();
+          remove(dbRef(self.database, `${oldRoomCode}/users/${oldHeadKey}`));
         }
         document.getElementById('splashscreen').style.display = 'none';
       }
@@ -295,7 +315,7 @@ export default class Main {
       } else {
         this.value = 'Disabled';
         // check if room exists
-        firebase.database().ref(roomCode).once('value', snapshot => {
+        get(dbRef(this.database, roomCode)).then(snapshot => {
         if(snapshot.exists()){
             success();
         } else {
@@ -571,7 +591,9 @@ export default class Main {
     for (const i in this.soundObjects) {
       if (!this.isMouseDown || this.soundObjects[i] !== this.activeObject) {
         if (this.soundObjects[i].type === 'SoundObject') {
-          this.soundObjects[i].followTrajectory(this.isPlaying);
+          if(!this.soundObjects[i].isManuallyPositioning) {
+            this.soundObjects[i].followTrajectory(this.isPlaying);
+          }
         }
       }
     }
@@ -589,7 +611,7 @@ export default class Main {
   }
 
   setupFirebase(){
-    this.headKey = this.dbRef.child('users').push();
+    this.headKey = push(child(this.dbRef, 'users'));
     this.headKey.set({
       position: this.headObject.containerObject.position,
     });
@@ -600,7 +622,10 @@ export default class Main {
         });
         let createdZone = new SoundZone(self, points, child.key);
         if(child.val().hasOwnProperty('sound')){
-            self.stoRef.child('zones/' + child.key + '/' + child.val().sound).getDownloadURL().then(function(url){
+            const fileRef = storageRef(
+              self.storage, `soundObjects/${child.key}/${child.val().sound}`
+            );
+            getDownloadURL(fileRef).then(url => {
                 let request = new XMLHttpRequest();
                 request.responseType = 'blob';
                 request.onload = function(event) {
@@ -620,8 +645,7 @@ export default class Main {
         self.soundZones.push(createdZone);
         return createdZone;
     }
-
-    this.dbRef.child('users').child(this.headKey.key).onDisconnect().remove();
+    onDisconnect(child(this.dbRef, `users/${this.headKey.key}`)).remove();
 
     this.gui.updateFirebaseDetails(this.dbRef, this.stoRef, this.headKey.key, this.roomCode);
 
@@ -635,8 +659,8 @@ export default class Main {
         parent.calculateMovementSpeed();
     }
 
-    this.dbRef.child('globals').on('child_changed', child => {
-        if(child.val().lastEdit != this.headKey.key){
+    onChildChanged(child(this.dbRef, 'globals'), snapshot => {
+        if(snapshot.val().lastEdit != this.headKey.key){
             if(!this.isPlaying){
                 this.isPlaying = true;
                 let element = document.getElementById('play-pause-button');
@@ -654,41 +678,41 @@ export default class Main {
         }
     });
 
-    this.dbRef.child('users').on('child_added', child => {
-      if(child.key != this.headKey.key){
+    onChildAdded(child(this.dbRef, 'users'), snapshot => {
+      if(snapshot.key != this.headKey.key){
         var otherHead = new Model(this.scene, this.loader);
         let otherHeadObj = new HeadObject(this);
         let name = 'user' + (Object.keys(this.userHeads).length + 1).toString();
-        if(child.val().trajectory){
+        if(snapshot.val().trajectory){
             createHeadTrajectory(otherHeadObj, child);
         }
-        otherHead.load(true, name, child.val().position, child.key, this.dbRef);
-        this.userHeads[child.key] = {
+        otherHead.load(true, name, snapshot.val().position, snapshot.key, this.dbRef);
+        this.userHeads[snapshot.key] = {
           head: name,
           otherHeadObject: otherHeadObj
         };
       }
     });
 
-    this.dbRef.child('users').on('child_changed', child => {
-      let pos = child.val().position;
-      if(Object.keys(this.userHeads).length > 0 && child.key != this.headKey.key){
+    onChildChanged(child(this.dbRef, 'users'), snapshot => {
+      let pos = snapshot.val().position;
+      if(Object.keys(this.userHeads).length > 0 && snapshot.key != this.headKey.key){
         let newPos = new THREE.Vector3(pos.x, pos.y, pos.z);
         // wait until object is loaded into the scene before searching
-        if(this.scene.getObjectByName(this.userHeads[child.key].head, true) == undefined) {
+        if(this.scene.getObjectByName(this.userHeads[snapshot.key].head, true) == undefined) {
           return;
         }
 
-        let head = this.userHeads[child.key].otherHeadObject;
-        if(head.trajectory === null && child.val().trajectory){
+        let head = this.userHeads[snapshot.key].otherHeadObject;
+        if(head.trajectory === null && snapshot.val().trajectory){
           createHeadTrajectory(head, child);
         }
-        if(head.trajectory == null && child.val().trajectory == null){
-          this.scene.getObjectByName(this.userHeads[child.key].head, true).position.copy(newPos);
+        if(head.trajectory == null && snapshot.val().trajectory == null){
+          this.scene.getObjectByName(this.userHeads[snapshot.key].head, true).position.copy(newPos);
         }
-        if(head.trajectory != null && head.trajectory != child.val().trajectory){
-          if(child.val().trajectory != null){
-            head.trajectory.splinePoints = child.val().trajectory.map(function(posi) {
+        if(head.trajectory != null && head.trajectory != snapshot.val().trajectory){
+          if(snapshot.val().trajectory != null){
+            head.trajectory.splinePoints = snapshot.val().trajectory.map(function(posi) {
               return new THREE.Vector3(posi.x, posi.y, posi.z);
             });
             head.trajectory.updateTrajectory(true);
@@ -696,59 +720,62 @@ export default class Main {
           } else {
             this.removeSoundTrajectory(head.trajectory);
             head.trajectory = null;
-            this.scene.getObjectByName(this.userHeads[child.key].head, true).position.copy(newPos);
+            this.scene.getObjectByName(this.userHeads[snapshot.key].head, true).position.copy(newPos);
           }
         } 
-        if(head.trajectory != null && child.val().speed){
-          let speed = child.val().speed;
+        if(head.trajectory != null && snapshot.val().speed){
+          let speed = snapshot.val().speed;
           head.movementSpeed = Math.min(Math.max(-100, speed), 100);
           head.calculateMovementSpeed();
         }
-        if(head.rotation.y != child.val().rotation){
-          let other = this.scene.getObjectByName(this.userHeads[child.key].head, true);
-          head.rotation.y = child.val().rotation;
+        if(head.rotation.y != snapshot.val().rotation){
+          let other = this.scene.getObjectByName(this.userHeads[snapshot.key].head, true);
+          head.rotation.y = snapshot.val().rotation;
           other.rotation.y = head.rotation.y;
         }
       }
     });
 
-    this.dbRef.child('users').on('child_removed', child => {
-      if(this.userHeads.hasOwnProperty(child.key)){
-        this.scene.remove(this.scene.getObjectByName(this.userHeads[child.key].head, true));
+    onChildRemoved(child(this.dbRef, 'users'), snapshot => {
+      if(this.userHeads.hasOwnProperty(snapshot.key)){
+        this.scene.remove(this.scene.getObjectByName(this.userHeads[snapshot.key].head, true));
         // remove head trajectory
-        if(child.val().trajectory){
-            this.removeSoundTrajectory(this.userHeads[child.key].otherHeadObject.trajectory);
+        if(snapshot.val().trajectory){
+            this.removeSoundTrajectory(this.userHeads[snapshot.key].otherHeadObject.trajectory);
         }
-        delete this.userHeads[child.key];
+        delete this.userHeads[snapshot.key];
       }
       
     });
 
-    this.dbRef.child('objects').on('child_added', child => {
-      if(child.val().lastEdit != this.headKey.key){
+    onChildAdded(child(this.dbRef, 'objects'), snapshot => {
+      if(snapshot.val().lastEdit != this.headKey.key){
         let createdObj = null;
         // add trajectory upon initial load
-        if(child.val().type == "SoundObject"){
-          createdObj = new SoundObject(this, child.key);
-          if(child.val().sound){
-            this.stoRef.child('soundObjects/'+ child.key +'/' + child.val().sound).getDownloadURL().then(function(url){
+        if(snapshot.val().type == "SoundObject"){
+          createdObj = new SoundObject(this, snapshot.key);
+          if(snapshot.val().sound){
+            const fileRef = storageRef(
+              self.storage, `soundObjects/${snapshot.key}/${snapshot.val().sound}`
+            );
+            getDownloadURL(fileRef).then(url => {
               let request = new XMLHttpRequest();
               request.responseType = 'blob';
               request.onload = function(event) {
                 let soundFile = request.response;
                 soundFile.lastModifiedDate = new Date();
-                soundFile.name = child.val().sound;
-                createdObj.copyOmnisphereSound(soundFile, child.val().volume, true, child.val().isPlaying);
+                soundFile.name = snapshot.val().sound;
+                createdObj.copyOmnisphereSound(soundFile, snapshot.val().volume, true, snapshot.val().isPlaying);
                 // add soundfile name in html
               }
               request.open("GET", url);
               request.send();
             });
           }
-          createdObj.addToScene(this.scene, child.val().position);
+          createdObj.addToScene(this.scene, snapshot.val().position);
           this.soundObjects.push(createdObj);
-          if(child.val().trajectory){
-            this.path.points = child.val().trajectory.map(function(posi) {
+          if(snapshot.val().trajectory){
+            this.path.points = snapshot.val().trajectory.map(function(posi) {
               return new THREE.Vector3(posi.x, posi.y, posi.z);
             });
             this.path.parentObject = createdObj;
@@ -758,62 +785,71 @@ export default class Main {
         } 
       }
       // putting these in here makes it so that the original object that created these won't get these made
-      this.dbRef.child('objects').child(child.key).child('cones').on('child_added', childC => {
+      onChildAdded(child(this.dbRef, `objects/${child.key}/cones`), snapshotC => {
         // can only run after an object has been added
         let self = this;
-        if(childC.val().lastEdit != this.headKey.key && childC.val().hasOwnProperty('sound')){
+        if(snapshotC.val().lastEdit != this.headKey.key && snapshotC.val().hasOwnProperty('sound')){
           let obj = this.soundObjects.find(object =>
-            object.containerObject.name == childC.val().parent
+            object.containerObject.name == snapshotC.val().parent
           );
-        this.stoRef.child('soundObjects/'+ childC.val().parent +'/' + childC.val().uuid + '/' + childC.val().sound).getDownloadURL().then(function(url){
+          
+          const fileRef = storageRef(
+            self.storage,
+            `soundObjects/${snapshotC.val().parent}/${snapshotC.val().uuid}/${snapshotC.val().sound}`
+          );            
+          getDownloadURL(fileRef).then(url => {
             let request = new XMLHttpRequest();
             request.responseType = 'blob';
             request.onload = function(event) {
             let soundFile = request.response;
             soundFile.lastModifiedDate = new Date();
-            soundFile.name = childC.val().sound;
-            obj.copyConeSound(soundFile, childC.val().volume, childC.val().latitude,
-            childC.val().longitude, childC.val().spread, childC.val().uuid, 
-            childC.val().isPlaying)
+            soundFile.name = snapshotC.val().sound;
+            obj.copyConeSound(soundFile, snapshotC.val().volume, snapshotC.val().latitude,
+            snapshotC.val().longitude, snapshotC.val().spread, snapshotC.val().uuid, 
+            snapshotC.val().isPlaying)
             }
             request.open("GET", url);
             request.send();
         });
         }
       })
-
-      this.dbRef.child('objects').child(child.key).child('cones').on('child_changed', childC => {
+      
+      onChildChanged(child(this.dbRef, `objects/${child.key}/cones`), snapshotC => {
         let obj = this.soundObjects.find(object =>
-          object.containerObject.name == childC.val().parent
+          object.containerObject.name == snapshotC.val().parent
         );
         let index = obj.cones.findIndex(cone => 
-          cone.uuid == childC.val().uuid
+          cone.uuid == snapshotC.val().uuid
         )
-        let hasSoundUpdateSound = (index != -1 && childC.val().hasOwnProperty('sound') 
-                                    && obj.cones[index].sound && obj.cones[index].filename != childC.val().sound);
-        if(childC.val().lastEdit != this.headKey.key && hasSoundUpdateSound){
+        let hasSoundUpdateSound = (index != -1 && snapshotC.val().hasOwnProperty('sound') 
+                                    && obj.cones[index].sound && obj.cones[index].filename != snapshotC.val().sound);
+        if(snapshotC.val().lastEdit != this.headKey.key && hasSoundUpdateSound){
           // sound exists but sound was changed
-            this.stoRef.child('soundObjects/'+ childC.val().parent +'/' + childC.val().uuid + '/' + childC.val().sound).getDownloadURL().then(function(url){
+          const fileRef = storageRef(
+            self.storage,
+            `soundObjects/${snapshotC.val().parent}/${snapshotC.val().uuid}/${snapshotC.val().sound}`
+          );            
+          getDownloadURL(fileRef).then(url => {
                 let request = new XMLHttpRequest();
                 request.responseType = 'blob';
                 request.onload = function(event) {
                 let soundFile = request.response;
                 soundFile.lastModifiedDate = new Date();
-                soundFile.name = childC.val().sound;
-                obj.copyConeSound(soundFile, childC.val().volume, childC.val().latitude,
-                    childC.val().longitude, childC.val().spread, childC.val().uuid, childC.val().isPlaying, true);
+                soundFile.name = snapshotC.val().sound;
+                obj.copyConeSound(soundFile, snapshotC.val().volume, snapshotC.val().latitude,
+                snapshotC.val().longitude, snapshotC.val().spread, snapshotC.val().uuid, snapshotC.val().isPlaying, true);
                 
                 let soundPicker = document.getElementById('guis').getElementsByClassName('cone')[index];
-                soundPicker.querySelector('.fcone').innerHTML = childC.val().sound;
-                soundPicker.querySelector('.fcone').defaultValue = childC.val().sound;
+                soundPicker.querySelector('.fcone').innerHTML = snapshotC.val().sound;
+                soundPicker.querySelector('.fcone').defaultValue = snapshotC.val().sound;
                 }
                 request.open("GET", url);
                 request.send();
             });
-        } else if(index != -1 && childC.val().lastEdit != this.headKey.key && obj.cones[index].sound && obj.cones[index].sound.state 
-            && childC.val().isPlaying == obj.cones[index].sound.state.isAudioPaused) {
+        } else if(index != -1 && snapshotC.val().lastEdit != this.headKey.key && obj.cones[index].sound && obj.cones[index].sound.state 
+            && snapshotC.val().isPlaying == obj.cones[index].sound.state.isAudioPaused) {
             // other child is paused
-            if(!childC.val().isPlaying){
+            if(!snapshotC.val().isPlaying){
               obj.stopConeSound(obj.cones[index]);
               obj.cones[index].userSetPlay = false;
             } else {
@@ -821,12 +857,12 @@ export default class Main {
               obj.cones[index].userSetPlay = true;
             }
         }
-        let volume = childC.val().volume;
-        let spread = childC.val().spread;
-        let latitude = childC.val().latitude;
-        let longitude = childC.val().longitude;
+        let volume = snapshotC.val().volume;
+        let spread = snapshotC.val().spread;
+        let latitude = snapshotC.val().latitude;
+        let longitude = snapshotC.val().longitude;
         if(index == -1){
-            obj.objConeCache[childC.val().uuid] = {
+            obj.objConeCache[snapshotC.val().uuid] = {
                 volume: volume,
                 spread: spread,
                 latitude: latitude,
@@ -835,7 +871,7 @@ export default class Main {
         }
 
         // update sound properties: vol, sprd, long, lat
-        if(index != -1 && obj.cones[index].sound != null && childC.val().lastEdit != this.headKey.key){
+        if(index != -1 && obj.cones[index].sound != null && snapshotC.val().lastEdit != this.headKey.key){
           if(volume !== obj.cones[index].sound.volume.gain.value){
             obj.cones[index].sound.volume.gain.value = volume;
             obj.changeLength(obj.cones[index]);
@@ -849,13 +885,13 @@ export default class Main {
 
       });
 
-      this.dbRef.child('objects').child(child.key).child('cones').on('child_removed', childC => {
-        if(this.soundObjects.length > 0 && childC.val().lastEdit != this.headKey.key){
+      onChildRemoved(child(this.dbRef, `objects/${child.key}/cones`), snapshotC => {
+        if(this.soundObjects.length > 0 && snapshotC.val().lastEdit != this.headKey.key){
           let obj = this.soundObjects.find(object => 
-            object.containerObject.name == childC.val().parent
+            object.containerObject.name == snapshotC.val().parent
           )
           let index = obj.cones.findIndex(cone => 
-            cone.uuid == childC.val().uuid
+            cone.uuid == snapshotC.val().uuid
           )
           obj.removeCone(obj.cones[index])
           this.activeObject = obj;
@@ -872,11 +908,11 @@ export default class Main {
       });
     });
 
-    this.dbRef.child('zones').on('child_added', child => {
+    onChildAdded(child(this.dbRef, 'zones'), snapshot => {
       // at this point, it only has last edit in key
-     if(child.val().lastEdit != this.headKey.key && child.val().type == "SoundZone"){
-        if(child.val().type == "SoundZone"){
-            let zone = createZone(child);
+     if(snapshot.val().lastEdit != this.headKey.key && snapshot.val().type == "SoundZone"){
+        if(snapshot.val().type == "SoundZone"){
+            let zone = createZone(snapshot);
             if (this.activeObject != zone) {
                 zone.setInactive(this);
             }
@@ -884,17 +920,17 @@ export default class Main {
       } 
     });
 
-    this.dbRef.child('objects').on('child_changed', child => {
-      if("position" in child.val() && child.val().lastEdit != this.headKey.key){
-        let pos = child.val().position;
+    onChildChanged(child(this.dbRef, 'objects'), snapshot => {
+      if("position" in snapshot.val() && snapshot.val().lastEdit != this.headKey.key){
+        let pos = snapshot.val().position;
         let obj = this.soundObjects.find(object =>
-          object.containerObject.name == child.key
+          object.containerObject.name == snapshot.key
         );
         // don't move object for user while in edit mode
         if(obj != null && obj != undefined){
           let nonTrajectoryPositionUpdate = false;
-          if(obj.trajectory === null && child.val().trajectory){
-            let points = child.val().trajectory.map(function(posi) {
+          if(obj.trajectory === null && snapshot.val().trajectory){
+            let points = snapshot.val().trajectory.map(function(posi) {
                 return new THREE.Vector3(posi.x, posi.y, posi.z);
             });
             if(!this.isEditingObject || (this.isEditingObject && this.activeObject != obj)){
@@ -909,7 +945,7 @@ export default class Main {
             nonTrajectoryPositionUpdate = true;
           }
           
-          if(obj.trajectory == null && child.val().trajectory == null){
+          if(obj.trajectory == null && snapshot.val().trajectory == null){
             if(!this.isEditingObject){
                 obj.setPosition(new THREE.Vector3(pos.x, pos.y, pos.z));
             } else {
@@ -921,13 +957,13 @@ export default class Main {
           let trajectoryEqual = true;
           if (obj.trajectory) {
             let length = obj.trajectory.points.length;
-            if (!child.val().hasOwnProperty('trajectory') || length !== child.val().trajectory.length) {
+            if (!snapshot.val().hasOwnProperty('trajectory') || length !== snapshot.val().trajectory.length) {
                 trajectoryEqual = false;
             } else {
                 for (var i = 0; i < length; ++i) {
-                    if (obj.trajectory.points[i].x !== child.val().trajectory[i].x || 
-                        obj.trajectory.points[i].y !== child.val().trajectory[i].y ||
-                        obj.trajectory.points[i].z !== child.val().trajectory[i].z) {
+                    if (obj.trajectory.points[i].x !== snapshot.val().trajectory[i].x || 
+                        obj.trajectory.points[i].y !== snapshot.val().trajectory[i].y ||
+                        obj.trajectory.points[i].z !== snapshot.val().trajectory[i].z) {
                         trajectoryEqual = false;
                         break;
                     }
@@ -936,8 +972,8 @@ export default class Main {
           }
 
           if(obj.trajectory != null && !trajectoryEqual){
-            if(child.val().trajectory != null){
-              let trajectory = child.val().trajectory.map(function(posi) {
+            if(snapshot.val().trajectory != null){
+              let trajectory = snapshot.val().trajectory.map(function(posi) {
                 return new THREE.Vector3(posi.x, posi.y, posi.z);
               });
 
@@ -967,15 +1003,15 @@ export default class Main {
             nonTrajectoryPositionUpdate = true;
           } 
           
-          if(obj.trajectory != null && child.val().speed != null && child.val().speed != obj.movementSpeed) {
-            let speed = child.val().speed;
+          if(obj.trajectory != null && snapshot.val().speed != null && snapshot.val().speed != obj.movementSpeed) {
+            let speed = snapshot.val().speed;
             obj.movementSpeed = Math.min(Math.max(-100, speed), 100);
             obj.calculateMovementSpeed();
             nonTrajectoryPositionUpdate = true;
           }
 
           // update sound file if available
-          if(obj.filename != null && (!child.val().hasOwnProperty('sound') || child.val().sound == '') && obj.omniSphere.sound){
+          if(obj.filename != null && (!snapshot.val().hasOwnProperty('sound') || snapshot.val().sound == '') && obj.omniSphere.sound){
             nonTrajectoryPositionUpdate = true;
             obj.disconnectSound();
             let soundPicker = document.getElementById('guis').querySelector('#omnisphere-sound-loader');
@@ -983,32 +1019,37 @@ export default class Main {
             soundPicker.querySelector('.remove-file').style.display = 'none';
           }
 
-          if(child.val().hasOwnProperty('sound') && child.val().sound != '' && obj.filename != child.val().sound && !obj.isAddingSound){
+          if(snapshot.val().hasOwnProperty('sound') && snapshot.val().sound != '' && obj.filename != snapshot.val().sound && !obj.isAddingSound){
             nonTrajectoryPositionUpdate = true;
             obj.isAddingSound = true;
-            this.stoRef.child('soundObjects/'+ child.key +'/' + child.val().sound).getDownloadURL().then(function(url){
+            const fileRef = storageRef(
+              self.storage,
+              `soundObjects/${snapshot.key}/${snapshot.val().sound}`
+            );
+            
+            getDownloadURL(fileRef).then(url => {
               let request = new XMLHttpRequest();
               request.responseType = 'blob';
               request.onload = function(event) {
                 let soundFile = request.response;
                 // Convert blob to File
                 soundFile.lastModifiedDate = new Date();
-                soundFile.name = child.val().sound;
-                obj.copyOmnisphereSound(soundFile, child.val().volume, true, child.val().isPlaying);
+                soundFile.name = snapshot.val().sound;
+                obj.copyOmnisphereSound(soundFile, snapshot.val().volume, true, snapshot.val().isPlaying);
                 // replace soundFile name
                 let soundPicker = document.getElementById('guis').querySelector('#omnisphere-sound-loader');
                 if (soundPicker) {
-                    soundPicker.querySelector('.valueSpan').innerHTML = child.val().sound;
-                    soundPicker.querySelector('.valueSpan').defaultValue = child.val().sound;
+                    soundPicker.querySelector('.valueSpan').innerHTML = snapshot.val().sound;
+                    soundPicker.querySelector('.valueSpan').defaultValue = snapshot.val().sound;
                     soundPicker.querySelector('.remove-file').style.display = 'inline-block';
                 }
               }
               request.open("GET", url);
               request.send();
             });
-          } else if((obj.omniSphere.sound && obj.omniSphere.sound.state && child.val().isPlaying == obj.omniSphere.sound.state.isAudioPaused)) {
+          } else if((obj.omniSphere.sound && obj.omniSphere.sound.state && snapshot.val().isPlaying == obj.omniSphere.sound.state.isAudioPaused)) {
             nonTrajectoryPositionUpdate = true;
-            if(!child.val().isPlaying){
+            if(!snapshot.val().isPlaying){
                 obj.stopSound();
                 obj.userSetPlay = false;
             } 
@@ -1021,74 +1062,79 @@ export default class Main {
           } 
 
           if(obj.omniSphere.sound != null){
-            obj.omniSphere.sound.volume.gain.value = child.val().volume;
+            obj.omniSphere.sound.volume.gain.value = snapshot.val().volume;
             obj.changeRadius();
           }
 
-          if(!nonTrajectoryPositionUpdate && obj.trajectory != null && child.val().trajectoryPosition) {
-            obj.trajectoryClock = child.val().trajectoryPosition;
+          if(!nonTrajectoryPositionUpdate && obj.trajectory != null && snapshot.val().trajectoryPosition) {
+            obj.trajectoryClock = snapshot.val().trajectoryPosition;
           }
         }
       } 
     });
 
-    this.dbRef.child('zones').on('child_changed', child => {
+    onChildChanged(child(this.dbRef, 'zones'), snapshot => {
       let zone = this.soundZones.find(zone =>
-        zone.containerObject.name == child.key
+        zone.containerObject.name == snapshot.key
       );
       // update position, sound, volume, rotation, scale
       let zoneUp = false, rotUp = false, scaleUp = false;
-      let pos = child.val().position;
-      if(child.val().lastEdit != this.headKey.key && child.val().type == "SoundZone"){
+      let pos = snapshot.val().position;
+      if(snapshot.val().lastEdit != this.headKey.key && snapshot.val().type == "SoundZone"){
         let zonePos = zone.containerObject.position;
         // update zonePosition
         if(zonePos.x != pos.x || zonePos.y != pos.y || zonePos.z != pos.z){
           zone.containerObject.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
         } 
         // update rotation
-        if(zone.containerObject.rotation.y != child.val().rotation){
-          zone.containerObject.rotation.y = child.val().rotation;
+        if(zone.containerObject.rotation.y != snapshot.val().rotation){
+          zone.containerObject.rotation.y = snapshot.val().rotation;
           rotUp = true;
         }
         // update scale
-        if(zone.zoneScale != child.val().scale){
-          zone.zoneScale = child.val().scale;
-          zone.updateZoneScale(child.val().prev, true)
+        if(zone.zoneScale != snapshot.val().scale){
+          zone.zoneScale = snapshot.val().scale;
+          zone.updateZoneScale(snapshot.val().prev, true)
           scaleUp = true;
         }
         // update sound
-        if (zone.filename != null && (!child.val().hasOwnProperty('sound') || child.val().sound == '') && zone.sound) {
+        if (zone.filename != null && (!snapshot.val().hasOwnProperty('sound') || snapshot.val().sound == '') && zone.sound) {
             zone.clear();
             var materialColor = this.isPlaying ? 0xFF1169 : 0x8F8F8F;
             zone.shape.material.color.setHex(materialColor);
             zone.filename = null;
         }
-        if(child.val().hasOwnProperty('sound') && child.val().sound != '' && child.val().lastEdit != this.headKey.key
-            && zone.filename != child.val().sound && !zone.isAddingSound){
+        if(snapshot.val().hasOwnProperty('sound') && snapshot.val().sound != '' && snapshot.val().lastEdit != this.headKey.key
+            && zone.filename != snapshot.val().sound && !zone.isAddingSound){
             zone.isAddingSound = true;
-          this.stoRef.child('zones/' + child.key + '/' + child.val().sound).getDownloadURL().then(function(url){
+            const fileRef = storageRef(
+              self.storage,
+              `zones/${snapshot.key}/${snapshot.val().sound}`
+            );
+            
+            getDownloadURL(fileRef).then(url => {
             let request = new XMLHttpRequest();
             request.responseType = 'blob';
             request.onload = function(event) {
               let soundFile = request.response;
               // Convert blob to File
               soundFile.lastModifiedDate = new Date();
-              soundFile.name = child.val().sound;
-              zone.copySound(soundFile, child.val().volume, child.val().isPlaying, true);
+              soundFile.name = snapshot.val().sound;
+              zone.copySound(soundFile, snapshot.val().volume, snapshot.val().isPlaying, true);
               // replace soundFile name
               let soundPicker = document.getElementById('guis').querySelector('#zone-sound');
               if (soundPicker) {
-                soundPicker.querySelector('.valueSpan').innerHTML = child.val().sound;
-                soundPicker.querySelector('.valueSpan').defaultValue = child.val().sound;
+                soundPicker.querySelector('.valueSpan').innerHTML = snapshot.val().sound;
+                soundPicker.querySelector('.valueSpan').defaultValue = snapshot.val().sound;
                 soundPicker.querySelector('.remove-file').style.display = 'inline-block';
               }
             }
             request.open("GET", url);
             request.send();
           });
-        } else if(child.val().lastEdit != this.headKey.key && zone.sound && zone.sound.state 
-                  && child.val().isPlaying == zone.sound.state.isAudioPaused) {
-            if(!child.val().isPlaying){
+        } else if(snapshot.val().lastEdit != this.headKey.key && zone.sound && zone.sound.state 
+                  && snapshot.val().isPlaying == zone.sound.state.isAudioPaused) {
+            if(!snapshot.val().isPlaying){
               zone.stopSound();
               zone.userSetPlay = false;
             } else {
@@ -1098,20 +1144,20 @@ export default class Main {
         }
   
         // update volume
-        if(zone.sound != null && zone.sound.volume.gain.value != child.val().volume){
-          zone.sound.source.volume.gain.value = child.val().volume;
-          zone.volume = child.val().volume;
+        if(zone.sound != null && zone.sound.volume.gain.value != snapshot.val().volume){
+          zone.sound.source.volume.gain.value = snapshot.val().volume;
+          zone.volume = snapshot.val().volume;
         }
 
         // update zone points whenever movement occurs       
         let zoneEqual = true;
-        if (zone.splinePoints.length !== child.val().zone.length) {
+        if (zone.splinePoints.length !== snapshot.val().zone.length) {
             zoneEqual = false;
         } else {
             for (var i = 0; i < zone.splinePoints.length; ++i) {
-                if (zone.splinePoints[i].x !== child.val().zone[i].x || 
-                    zone.splinePoints[i].y !== child.val().zone[i].y ||
-                    zone.splinePoints[i].z !== child.val().zone[i].z) {
+                if (zone.splinePoints[i].x !== snapshot.val().zone[i].x || 
+                    zone.splinePoints[i].y !== snapshot.val().zone[i].y ||
+                    zone.splinePoints[i].z !== snapshot.val().zone[i].z) {
                     zoneEqual = false;
                     break;
                 }
@@ -1120,7 +1166,7 @@ export default class Main {
 
         if(!zoneEqual  && !scaleUp && !rotUp){
           let previousSplinePoints = Array.from(zone.splinePoints);
-          zone.splinePoints = child.val().zone.map(function(posi) {
+          zone.splinePoints = snapshot.val().zone.map(function(posi) {
             return new THREE.Vector3(posi.x, posi.y, posi.z)
           });
 
@@ -1165,11 +1211,11 @@ export default class Main {
       }
     });
 
-    this.dbRef.child('objects').on('child_removed', child => {
-      if("position" in child.val() ){
-        let pos = child.val().position;
+    onChildRemoved(child(this.dbRef, 'objects'), snapshot => {
+      if("position" in snapshot.val() ){
+        let pos = snapshot.val().position;
         let obj = this.soundObjects.find(object =>
-          object.containerObject.name == child.key
+          object.containerObject.name == snapshot.key
         );
         if(obj != undefined){
           // remove trajectory if object has trajectory
@@ -1188,8 +1234,8 @@ export default class Main {
       }
     });
 
-    this.dbRef.child('zones').on('child_removed', child => {
-      let zone = this.soundZones.find(zone => zone.containerObject.name == child.key);
+    onChildRemoved(child(this.dbRef, 'zones'), snapshot => {
+      let zone = this.soundZones.find(zone => zone.containerObject.name == snapshot.key);
       if(zone != undefined){
         // delete audioFile
         this.removeSoundZone(zone);
@@ -1256,13 +1302,13 @@ export default class Main {
       .catch(error => {
           console.error('Error:', error);
       });
-    firebase.database().ref(self.inviteCode).once('value', snapshot => {
+      get(dbRef(self.database, self.inviteCode)).then(snapshot => {
         if(!snapshot.exists()){
             document.getElementById('invite-code').innerHTML = self.inviteCode;
             self.roomCode = self.inviteCode;
-            self.dbRef = self.database.ref(self.roomCode);
-            self.stoRef = self.storage.ref().child(self.roomCode);
-            this.dbRef.child('globals').child('sound').set({
+            self.dbRef = dbRef(self.database, self.roomCode);
+            self.stoRef = storageRef(self.storage, self.roomCode);
+            set(dbRef(self.database, `${self.roomCode}/globals/sound`), {
                 globalIsPlaying: this.isPlaying,
             });
             self.setupFirebase();
@@ -1422,6 +1468,12 @@ export default class Main {
 
     // move add cone button to position above
 
+    // Fix: hide nav arrows in edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'none';
+    });
+
     // slightly hacky fix: orbit controls tween works poorly from top view
     if (this.controls.threeControls.getPolarAngle() < 0.01) {
       this.controls.threeControls.constraint.rotateUp(-0.02);
@@ -1476,6 +1528,12 @@ export default class Main {
     }
     // re-enable panning
     this.controls.enablePan();
+
+    // Fix: show nav arrows when exiting edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'block';
+    });
 
     // re-enable copy-paste functionality
     // document.getElementById('copy').style.pointerEvents = 'auto';
@@ -1681,10 +1739,13 @@ export default class Main {
     }
     if(this.roomCode != null && this.head != null &&
        this.headObject.trajectory == null && key != null){
-      this.dbRef.child('users').child(key).update({
-        position: this.head.position,
-        rotation: this.head.rotation.y
-      });
+        update(
+          child(child(this.dbRef, 'users'), key),
+          {
+            position: this.head.position,
+            rotation: this.head.rotation.y
+          }
+        );
     }
     for(let keyVal in this.userHeads){
       let headObj = this.userHeads[keyVal].otherHeadObject;
@@ -1758,13 +1819,18 @@ export default class Main {
     }
 
     [].concat(this.soundObjects, this.soundZones).forEach(sound => sound.checkPlayState(this));
+    // head trajectory follows the global state again after global play/pause
+    if (this.headObject) this.headObject.syncTrajectoryToGlobal(this);
     [].concat(this.soundObjects, this.soundZones).forEach(obj => obj.toggleAppearance(this))
     if (this.roomCode != null) {
       // TODO: must edit the cloud function on room deletion to also remove this globalIsPlaying value
-      this.dbRef.child('globals').child('sound').update({
-        globalIsPlaying: this.isPlaying,
-        lastEdit: this.headKey.key
-      });
+      update(
+        child(this.dbRef, 'globals/sound'),
+        {
+          globalIsPlaying: this.isPlaying,
+          lastEdit: this.headKey.key
+        }
+      );
     }
   }
 
@@ -2022,6 +2088,21 @@ export default class Main {
           this.activeObject = null;
           break;
         case 'removeSoundTrajectory':
+          let parentObject = actionToUndo.mainObject.parentSoundObject;
+          // if parent is null or doesn't have containerObject, skip
+          if (!parentObject || !parentObject.containerObject) {
+              console.warn('Cannot restore trajectory, parent object doesnt exists');
+              cannotDo = true;
+              break;
+          }
+          // check if parent object is in the scene
+          let parentExists = this.soundObjects.includes(parentObject);
+          if (!parentExists) {
+              console.warn('Cannot restore trajectory, parent object not in scene');
+              cannotDo = true;
+              break;
+          }
+          
           this.addSoundTrajectory(actionToUndo.mainObject, actionToUndo.mainObject.parentSoundObject, false);
           this.setActiveObject(actionToUndo.mainObject.parentSoundObject);
           actionToUndo.mainObject.parentSoundObject.trajectory.setActive();
@@ -2508,7 +2589,7 @@ export default class Main {
         }
 
         let json = JSON.parse(config);
-        let loader = new THREE.ObjectLoader();
+        let loader = new OBJLoader();
         var cam = new Camera(this.renderer.threeRenderer).threeCamera
         if(json.camera){
           cam = loader.parse(json.camera);
