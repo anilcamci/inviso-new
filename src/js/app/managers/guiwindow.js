@@ -1394,12 +1394,13 @@ export default class GUIWindow {
 	var input = document.getElementById('soundPicker');
 	// listen to click
 	var self = this;
+	self.app.audio.context.resume();
 	input.onchange = function(e) {
 	  const file = e.target.files[0];
 
 	  input.parentNode.reset();
-
-	  if (file && Math.round((file.size / 1024)) <= 51200) {
+		
+	  if (file ) { //&& Math.round((file.size / 1024)) <= 51200
 		// load sound onto obect
 		switch (obj.type) {
 		  case 'SoundTrajectory':

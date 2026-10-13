@@ -4,7 +4,12 @@ node_modules/
 # build output
 build/
 dist/
-src/public/assets/js/
+src/public/assets/js/*
+!src/public/assets/js/zip.js
+!src/public/assets/js/rStats.js
+!src/public/assets/js/rStats.extras.js
+!src/public/assets/js/simplify3D.js
+!src/public/assets/js/libtess.min.js
 src/public/assets/css/
 public/assets/js/
 public/assets/css/

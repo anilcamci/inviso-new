@@ -342,7 +342,7 @@ export default class Main {
       });
     }
     document.getElementById('load').onclick = function() {
-      if (self.audio.context.state == "suspended") self.audio.context.resume();
+      if (self.audio.context.state == "suspended" || "interrupted") self.audio.context.resume();
       const i = document.getElementById('import');
       i.click();
       i.addEventListener('change', handleFiles, false);
@@ -2090,7 +2090,7 @@ export default class Main {
           }
           break;
         case 'addFullObject':
-          this.removeSoundObject(actionToUndo.mainObject, "comboUndoRedo");
+          this.removeSoundObject(actionToUndo.mainObject, "combo");
           this.activeObject = null;
           this.reset();
           break;
@@ -2142,6 +2142,11 @@ export default class Main {
           this.removeSoundZone(actionToDo.mainObject, false);
           this.activeObject = null;
           break;
+        case 'addSoundTrajectory':
+          this.addSoundTrajectory(actionToDo.mainObject, actionToDo.mainObject.parentSoundObject, false);
+          this.setActiveObject(actionToDo.mainObject.parentSoundObject);
+          actionToDo.mainObject.parentSoundObject.trajectory.setActive();
+          break;
         case 'removeSoundTrajectory':
           if(actionToDo.mainObject.parentSoundObject.trajectory == null){
             cannotDo = true;
@@ -2151,11 +2156,6 @@ export default class Main {
             this.removeSoundTrajectory(actionToDo.mainObject, false);
             this.setActiveObject(actionToDo.mainObject);
           }
-          break;
-        case 'addSoundTrajectory':
-          this.addSoundTrajectory(actionToDo.mainObject, actionToDo.mainObject.parentSoundObject, false);
-          this.setActiveObject(actionToDo.mainObject.parentSoundObject);
-          actionToDo.mainObject.parentSoundObject.trajectory.setActive();
           break;
         case 'removeFullObject':
           if(!this.doesObjectExist(actionToDo.mainObject.containerObject.uuid, 'soundObject')){
@@ -2508,6 +2508,7 @@ export default class Main {
   }
 
   import(data) {
+    // self.app.audio.context.resume();
     const zipHelper = this.zipHelper;
     var files = {};
     var promises = [];
@@ -2558,12 +2559,28 @@ export default class Main {
         }
 
         let json = JSON.parse(config);
-        let loader = new OBJLoader();
-        var cam = new Camera(this.renderer.threeRenderer).threeCamera
-        if(json.camera){
-          cam = loader.parse(json.camera);
+        let cam = new Camera(this.renderer.threeRenderer).threeCamera;
+
+        // Only restore if camera data exists
+        if (json.camera && json.camera.object) {
+          const c = json.camera.object;
+
+          // Set perspective parameters
+          cam.fov = c.fov;
+          cam.near = c.near;
+          cam.far = c.far;
           cam.aspect = this.camera.threeCamera.aspect;
-        } 
+
+          // Restore position from matrix (columns 12,13,14 of 4x4 matrix)
+          cam.position.set(c.matrix[12], c.matrix[13], c.matrix[14]);
+
+          // Restore rotation from matrix
+          const m = new THREE.Matrix4();
+          m.fromArray(c.matrix);
+          cam.quaternion.setFromRotationMatrix(m);
+
+          cam.updateProjectionMatrix();
+        }
 
         json.soundObjects.forEach(obj => {
           let parsed = JSON.parse(obj);

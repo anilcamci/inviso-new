@@ -503,13 +503,14 @@ export default class SoundObject {
 
   loadSound(file, audio, mute, object, soundIn = null, copy = false) {
     const context = audio.context;
+    if(context.state == "interrupted") context.resume();
     const mainMixer = context.createGain();
     const isAmbisonicMode = this.app.isAmbisonicMode;
     const sphereAndConeSounds = this.app.sphereAndConeSounds;
     let reader = new FileReader();
     var sound = {};
 
-    console.log("loading ", file.name);
+    // console.log("loading ", file.name);
     // add metadata with name of uuid
     if (object != null && !copy && this.roomCode != null) {
       let id = object.uuid;
@@ -1606,6 +1607,7 @@ export default class SoundObject {
           this.gui.addCone(cone);
           this.pointConeMagic(cone, c.position.lat, c.position.long);
           let self = this;
+          this.coneSounds[cone.uuid] = cone.sound;
           if (this.roomCode) {
             let upload = this.stoRef.child('soundObjects/' + this.containerObject.name + '/' + cone.uuid + '/' + c.filename).put(file);
             console.log("uploading cone sound");

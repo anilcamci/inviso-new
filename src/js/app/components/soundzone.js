@@ -99,6 +99,7 @@ export default class SoundZone {
         this.isPlaying = false;
       }
       if(!this.isPlaying){
+        if(audio.context.state == "interrupted") audio.context.resume();
         this.sound.source = audio.context.createBufferSource();
         this.sound.source.buffer = this.sound.buffer;
         this.sound.source.loop = true;
@@ -187,6 +188,7 @@ export default class SoundZone {
 
   loadSound(file, audio, mute, copy = false) {
     const context = audio.context;
+    if(context.state == "interrupted") context.resume();
     const zoneSounds = this.app.zoneSounds;
     let reader = new FileReader();
     const isAmbisonicMode = this.app.isAmbisonicMode;
