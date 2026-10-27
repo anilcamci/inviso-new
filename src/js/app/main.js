@@ -591,7 +591,9 @@ export default class Main {
     for (const i in this.soundObjects) {
       if (!this.isMouseDown || this.soundObjects[i] !== this.activeObject) {
         if (this.soundObjects[i].type === 'SoundObject') {
-          this.soundObjects[i].followTrajectory(this.isPlaying);
+          if(!this.soundObjects[i].isManuallyPositioning) {
+            this.soundObjects[i].followTrajectory(this.isPlaying);
+          }
         }
       }
     }
@@ -1466,6 +1468,12 @@ export default class Main {
 
     // move add cone button to position above
 
+    // Fix: hide nav arrows in edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'none';
+    });
+
     // slightly hacky fix: orbit controls tween works poorly from top view
     if (this.controls.threeControls.getPolarAngle() < 0.01) {
       this.controls.threeControls.constraint.rotateUp(-0.02);
@@ -1520,6 +1528,12 @@ export default class Main {
     }
     // re-enable panning
     this.controls.enablePan();
+
+    // Fix: show nav arrows when exiting edit mode
+    let navArrows = document.querySelectorAll('.nav');
+    navArrows.forEach(arrow => {
+      arrow.style.display = 'block';
+    });
 
     // re-enable copy-paste functionality
     // document.getElementById('copy').style.pointerEvents = 'auto';
@@ -2074,6 +2088,21 @@ export default class Main {
           this.activeObject = null;
           break;
         case 'removeSoundTrajectory':
+          let parentObject = actionToUndo.mainObject.parentSoundObject;
+          // if parent is null or doesn't have containerObject, skip
+          if (!parentObject || !parentObject.containerObject) {
+              console.warn('Cannot restore trajectory, parent object doesnt exists');
+              cannotDo = true;
+              break;
+          }
+          // check if parent object is in the scene
+          let parentExists = this.soundObjects.includes(parentObject);
+          if (!parentExists) {
+              console.warn('Cannot restore trajectory, parent object not in scene');
+              cannotDo = true;
+              break;
+          }
+          
           this.addSoundTrajectory(actionToUndo.mainObject, actionToUndo.mainObject.parentSoundObject, false);
           this.setActiveObject(actionToUndo.mainObject.parentSoundObject);
           actionToUndo.mainObject.parentSoundObject.trajectory.setActive();

@@ -703,23 +703,30 @@ export default class GUIWindow {
 			// clamp to [0, 1]
 			position = Math.max(0, Math.min(1, position));
 			object.trajectoryClock = position;
-			
-			// update the object position on the trajectory
-			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
-			object.setPosition(pointOnTrajectory);
+
+			// set flag to indicate manual positioning
+			object.isManuallyPositioning = true;
 			
 			// Fix: pause movement by setting speed to 0
 			// only store speed once
+			// Pause before updating position
 			if (object.movementSpeed != 0 && !object.oldTrajectorySpeed) {
 				object.oldTrajectorySpeed = object.movementSpeed;
 				object.movementSpeed = 0;
 				object.calculateMovementSpeed();
 			}
 
+			// update the object position on the trajectory
+			let pointOnTrajectory = object.trajectory.spline.getPointAt(position);
+			object.setPosition(pointOnTrajectory);
+
+			object.containerObject.position.copy(pointOnTrajectory); // force alignment
+
 			if (object.roomCode) {
 					object.dbRef.child('objects').child(object.containerObject.name).update({
 							trajectoryPosition: position,
-							position: pointOnTrajectory
+							position: pointOnTrajectory,
+							movementSpeed: 0
 					});
 			}
 		}
@@ -1599,6 +1606,12 @@ export default class GUIWindow {
 	if (this.obj.type === "SoundObject") {
 	  this.obj.disconnectSound();
 	  this.obj.filename = null;
+		// clear cached variables
+		this.obj.oldSound = null;
+		this.obj.oldFileName = null;
+		this.obj.oldFilePlayStatus = null;
+		this.obj.oldFileInputVolume = null;
+
 	  if(this.roomCode != null){
 		this.dbRef.child('objects').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1618,6 +1631,11 @@ export default class GUIWindow {
 
 	  var materialColor = this.app.isPlaying ? 0xFF1169 : 0x8F8F8F;
 	  this.obj.shape.material.color.setHex(materialColor);
+
+		// clear cached variable
+		this.obj.oldSound = null;
+    this.obj.oldFileName = null;
+		
 	  if(this.roomCode != null){
 		this.dbRef.child('zones').child(this.obj.containerObject.name).update({
 		  sound: null,
@@ -1713,16 +1731,28 @@ async switchInputSource() {
 	} else {
 		// FILE->LIVE
 		//fix: check if curr file sound state exists
+		this.obj.prevOmniSphereSound = null;
 		if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
 			this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
 			this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
 			this.obj.oldFileName = this.obj.omniSphere.sound.name;
-		
+	
 			// pause without overwriting 
 			this.obj.stopSound(false, true);
 			this.obj.oldSound = this.obj.omniSphere.sound;
 			this.obj.omniSphere.sound = null;
 		}
+        
+		// if (this.obj.omniSphere.sound && this.obj.omniSphere.sound.state) {
+		// 	this.obj.oldFilePlayStatus = !this.obj.omniSphere.sound.state.isAudioPaused;
+		// 	this.obj.oldFileInputVolume = this.obj.omniSphere.sound.volume.gain.value;
+		// 	this.obj.oldFileName = this.obj.omniSphere.sound.name;
+		
+		// 	// pause without overwriting 
+		// 	this.obj.stopSound(false, true);
+		// 	this.obj.oldSound = this.obj.omniSphere.sound;
+		// 	this.obj.omniSphere.sound = null;
+		// }
 		
 		this.getLiveInputDevices();
 
@@ -2273,6 +2303,10 @@ useAudioInput(deviceId) {
 				this.obj.updateSpeed(this.obj.movementSpeed);
 				this.obj.oldTrajectorySpeed = null;
 			}
+			// clear manual positioning flag
+			if(this.obj) {
+				this.obj.isManuallyPositioning = false;
+			}
 	}
 
 	this.dragEvent = {};
@@ -2333,6 +2367,7 @@ useAudioInput(deviceId) {
 			this.obj.calculateMovementSpeed();
 			this.obj.updateSpeed(this.obj.movementSpeed);
 			this.obj.oldTrajectorySpeed = null;
+			this.obj.isManuallyPositioning = false;
 		}
 		
 		this.display();
