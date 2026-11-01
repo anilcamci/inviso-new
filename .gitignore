@@ -19,3 +19,6 @@ npm-debug.log*
 
 # macOS
 .DS_Store
+!src/public/assets/js/z-worker.js
+!src/public/assets/js/deflate.js
+!src/public/assets/js/inflate.js
