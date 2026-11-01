@@ -341,15 +341,18 @@ export default class Main {
         a.click();
       });
     }
+    // Attach the file listener once. It used to be added on every Load
+    // click, so the Nth import ran N times and duplicated the project.
+    const importInput = document.getElementById('import');
+    importInput.addEventListener('change', function() {
+      if (this.files[0]) self.import(this.files[0]);
+      // clear so picking the same file again still fires 'change'
+      this.value = '';
+    }, false);
+
     document.getElementById('load').onclick = function() {
       if (self.audio.context.state == "suspended" || "interrupted") self.audio.context.resume();
-      const i = document.getElementById('import');
-      i.click();
-      i.addEventListener('change', handleFiles, false);
-
-      function handleFiles() {
-        self.import(this.files[0]);
-      }
+      importInput.click();
     }
 
     document.getElementById('outputMode').onclick = function() {
