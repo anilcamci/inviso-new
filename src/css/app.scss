@@ -1,8 +1,8 @@
 // Utils
-@import './utils/normalize';
+@use './utils/normalize';
 
 // App
-@import './app/base';
+@use './app/base';
 @import './app/main';
 
 // Components

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { VertexNormalsHelper } from 'three-stdlib'
 
 // Simple mesh helper that shows edges, wireframes, and face and vertex normals
 export default class MeshHelper {
@@ -18,7 +19,7 @@ export default class MeshHelper {
     mesh.add(edgesLine);
 
     scene.add(new THREE.BoxHelper(mesh));
-    scene.add(new THREE.FaceNormalsHelper(mesh, 2));
-    scene.add(new THREE.VertexNormalsHelper(mesh, 2));
+    // scene.add(new FaceNormalsHelper(mesh, 2));
+    scene.add(new VertexNormalsHelper(mesh, 2));
   }
 }
