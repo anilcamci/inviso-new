@@ -1555,6 +1555,13 @@ export default class SoundObject {
       position: this.containerObject.position,
       movementSpeed: this.movementSpeed,
       trajectory: (this.trajectory && this.trajectory.points) || null,
+      // play/pause states, restored after import by applySavedTrajectoryState() + applySavedPlayState()
+      soundIsPlaying: (this.omniSphere.sound && this.omniSphere.sound.state) ? !this.omniSphere.sound.state.isAudioPaused : null,
+      soundControlSource: this.lastFileControlSource,
+      trajectoryIsPlaying: this.trajectoryIsPlaying,
+      trajectoryControlSource: this.lastTrajControlSource,
+      trajectoryClock: this.trajectoryClock,
+      movementDirection: this.movementDirection,
       cones: this.cones.map((c) => {
         return {
           file: c.file,
@@ -1566,6 +1573,7 @@ export default class SoundObject {
           volume: c.sound.volume.gain.value,
           spread: c.sound.spread,
           color: c.randGreen,
+          isPlaying: (c.sound && c.sound.state) ? !c.sound.state.isAudioPaused : null,
         };
       }),
     });
@@ -1573,6 +1581,9 @@ export default class SoundObject {
 
   fromJSON(json, importedData) {
     const object = JSON.parse(json);
+    // kept so main.import() can restore play/pause once sounds have loaded
+    this.savedPlayState = object;
+    const loads = [];
     this.containerObject.position.copy(object.position);
     this.altitudeHelper.position.copy(object.position);
     this.raycastSphere.position.copy(object.position);
@@ -1582,13 +1593,13 @@ export default class SoundObject {
     if (object.filename && typeof object.volume === 'number') {
       const file = importedData[object.filename];
       if (file) {
-        this.loadSound(file, this.audio, false, this).then((sound) => {
+        loads.push(this.loadSound(file, this.audio, false, this).then((sound) => {
           this.omniSphere.sound = sound;
           this.omniSphere.sound.name = object.filename;
           this.omniSphere.sound.volume.gain.value = object.volume;
           this.setAudioPosition(this.omniSphere);
           window.dispatchEvent(new Event('resize')); // resize window after loading to ensure aspect ratio is preserved
-        });
+        }));
       }
     }
 
@@ -1596,8 +1607,9 @@ export default class SoundObject {
       let cone;
       const file = importedData[c.filename];
       if (file) {
-        this.loadSound(file, this.audio, false).then((sound) => {
+        loads.push(this.loadSound(file, this.audio, false).then((sound) => {
           cone = this.createCone(sound, c.color);
+          cone.savedIsPlaying = c.isPlaying;
           cone.file = file;
           cone.filename = c.filename;
           cone.sound.volume.gain.value = c.volume;
@@ -1633,7 +1645,7 @@ export default class SoundObject {
               });
             });
           }
-        });
+        }));
       }
     });
 
@@ -1645,5 +1657,63 @@ export default class SoundObject {
       this.dbRef.child('objects').child(this.containerObject.name).update(updates);
 
     }
+
+    // resolves when the object's sounds (omnisphere + cones) have loaded
+    return Promise.all(loads.map(l => l.catch(() => {})));
+  }
+
+  // Restore the trajectory play/pause state and position saved by toJSON().
+  // Called by main.import() right after the trajectory is created, so a
+  // paused object never starts moving. Missing fields (older files) are skipped.
+  applySavedTrajectoryState() {
+    const saved = this.savedPlayState;
+    if (!saved) return;
+    if (typeof saved.trajectoryIsPlaying === 'boolean') this.trajectoryIsPlaying = saved.trajectoryIsPlaying;
+    if (saved.trajectoryControlSource) this.lastTrajControlSource = saved.trajectoryControlSource;
+    if (typeof saved.movementDirection === 'number') this.movementDirection = saved.movementDirection;
+    if (this.trajectory && typeof saved.trajectoryClock === 'number') {
+      this.trajectoryClock = Math.max(Math.min(saved.trajectoryClock, 1), 0);
+      const point = this.trajectory.spline.getPointAt(this.trajectoryClock);
+      this.containerObject.position.copy(point);
+      this.raycastSphere.position.copy(point);
+      this.altitudeHelper.position.copy(point);
+      this.axisHelper.position.copy(point);
+      this.altitudeHelper.position.y = 0;
+      this.cones.forEach(cone => this.setAudioPosition(cone));
+      if (this.omniSphere.sound) this.setAudioPosition(this.omniSphere);
+    }
+  }
+
+  // Restore the sound play/pause states (omnisphere + cones) saved by
+  // toJSON(). Called by main.import() once the sounds have loaded.
+  // Missing fields (older files) are skipped and keep their default.
+  applySavedPlayState() {
+    const saved = this.savedPlayState;
+    this.savedPlayState = null;
+    if (!saved) return;
+
+    // sound (omnisphere)
+    const sound = this.omniSphere.sound;
+    if (!this.isLiveInput && sound && sound.state && typeof saved.soundIsPlaying === 'boolean') {
+      if (!saved.soundIsPlaying && !sound.state.isAudioPaused) {
+        this.stopSound();
+      } else if (saved.soundIsPlaying && sound.state.isAudioPaused) {
+        this.playSound();
+      }
+      this.userSetPlay = saved.soundIsPlaying;
+    }
+    if (saved.soundControlSource) this.lastFileControlSource = saved.soundControlSource;
+
+    // cones
+    this.cones.forEach((cone) => {
+      if (typeof cone.savedIsPlaying !== 'boolean' || !cone.sound || !cone.sound.state) return;
+      if (!cone.savedIsPlaying && !cone.sound.state.isAudioPaused) {
+        this.stopConeSound(cone);
+      } else if (cone.savedIsPlaying && cone.sound.state.isAudioPaused) {
+        this.playConeSound(cone);
+      }
+      cone.userSetPlay = cone.savedIsPlaying;
+      delete cone.savedIsPlaying;
+    });
   }
 }

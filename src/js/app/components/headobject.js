@@ -211,12 +211,19 @@ export default class HeadObject {
       position: this.containerObject.position,
       rotation: this.rotation,
       movementSpeed: this.movementSpeed,
-      trajectory: (this.trajectory && this.trajectory.points) || null
+      trajectory: (this.trajectory && this.trajectory.points) || null,
+      // trajectory play/pause state, restored by applySavedTrajectoryState() after import
+      trajectoryIsPlaying: this.trajectoryIsPlaying,
+      trajectoryControlSource: this.lastTrajControlSource,
+      trajectoryClock: this.trajectoryClock,
+      movementDirection: this.movementDirection
     });
   }
 
   fromJSON(json, importedData) {
     const object = JSON.parse(json);
+    // kept so main.import() can restore the trajectory state after it is created
+    this.savedPlayState = object;
     this.containerObject.position.copy(object.position);
     this.rotation = object.rotation;
     this.movementSpeed = object.movementSpeed;
@@ -225,5 +232,22 @@ export default class HeadObject {
     this.app.head.position.copy(this.containerObject.position);
     this.app.axisHelper.rotation.y = this.rotation.y;
     this.app.head.rotation.y = this.rotation.y;
+  }
+
+  // Restore the trajectory play/pause state and position saved by toJSON().
+  // Older export files don't have these fields, so they are skipped.
+  applySavedTrajectoryState() {
+    const saved = this.savedPlayState;
+    this.savedPlayState = null;
+    if (!saved) return;
+
+    if (typeof saved.trajectoryIsPlaying === 'boolean') this.trajectoryIsPlaying = saved.trajectoryIsPlaying;
+    if (saved.trajectoryControlSource) this.lastTrajControlSource = saved.trajectoryControlSource;
+    if (typeof saved.movementDirection === 'number') this.movementDirection = saved.movementDirection;
+    if (this.trajectory && typeof saved.trajectoryClock === 'number') {
+      this.trajectoryClock = Math.max(Math.min(saved.trajectoryClock, 1), 0);
+      // the render loop copies this position to the head and listener
+      this.containerObject.position.copy(this.trajectory.spline.getPointAt(this.trajectoryClock));
+    }
   }
 }

@@ -751,13 +751,18 @@ export default class SoundZone {
       filename: this.filename,
       volume: this.volume,
       scale: this.zoneScale,
-      rotation: this.containerObject.rotation.y
+      rotation: this.containerObject.rotation.y,
+      // play/pause state, restored by applySavedPlayState() after import
+      soundIsPlaying: this.sound ? this.userSetPlay : null
     };
     return JSON.stringify(object);
   }
 
   fromJSON(json, importedData) {
     const object = JSON.parse(json);
+    // kept so main.import() can restore play/pause once the sound has loaded
+    this.savedPlayState = object;
+    let load = Promise.resolve();
     this.containerObject.position.copy(object.position);
     
     // Older export files have no scale/rotation: skip and keep defaults.
@@ -772,7 +777,7 @@ export default class SoundZone {
 
     let file = importedData[object.filename];
     if (file) {
-      this.loadSound(file, this.audio, false);
+      load = this.loadSound(file, this.audio, false);
       const volume = Math.max(Math.min(object.volume, 2), 0.0);
       this.shape.material.opacity = Helpers.mapRange(volume, 0, 2, 0.05, 0.35);
       this.volume = volume;
@@ -795,6 +800,26 @@ export default class SoundZone {
         };
         this.dbRef.child('zones').child(this.containerObject.name).update(updates);
 
+    }
+
+    // resolves when the zone's sound has loaded
+    return load.catch(() => {});
+  }
+
+  // Restore the play/pause state saved by toJSON(). Older export files
+  // don't have it, so it is skipped and the zone keeps its default.
+  applySavedPlayState() {
+    const saved = this.savedPlayState;
+    this.savedPlayState = null;
+    if (!saved || typeof saved.soundIsPlaying !== 'boolean' || !this.sound) return;
+
+    this.userSetPlay = saved.soundIsPlaying;
+    if (saved.soundIsPlaying) {
+      if (this.sound.state.isAudioPaused) this.playSound();
+      this.shape.material.color.setHex(0xFF1169);
+    } else {
+      this.stopSound();
+      this.shape.material.color.setHex(0x8F8F8F);
     }
   }
 }
