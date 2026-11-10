@@ -51,6 +51,9 @@ export default {
     defaultTrajectoryClock: 1,
     defaultMovementSpeed: 5,
     defaultMovementDirection: 1,
+    // trajectory speed LFO: rate in Hz, depth 0-1 (0 = off)
+    defaultLfoRate: 0.25,
+    defaultLfoDepth: 0,
     defaultPosX: 0,
     defaultPosY: 0,
     defaultPosZ: 0

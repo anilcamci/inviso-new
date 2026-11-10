@@ -868,6 +868,34 @@ export default class GUIWindow {
 
 		})
 
+	// per-object sine LFO on trajectory speed (sound objects only, not the head)
+	if (object.type === 'SoundObject') {
+	  this.addParameter({
+		property: 'LFO Rate',
+		value: object.lfoRate,
+		suffix: ' Hz',
+		type: 'number',
+		cls: 'lfo-rate',
+		bind: function(dx) {
+		  // 0.01 Hz per pixel dragged, between 0.01 and 10 Hz
+		  object.lfoRate = Math.min(Math.max(0.01, object.lfoRate + dx / 100), 10);
+		}
+	  }, elem);
+
+	  this.addParameter({
+		property: 'LFO Depth',
+		value: Math.round(object.lfoDepth * 100),
+		suffix: ' %',
+		type: 'number',
+		cls: 'lfo-depth',
+		bind: function(dx) {
+		  // shown as 0-100 %, 0.5 % per pixel dragged. Capped at 100 % so
+		  // the object slows down to a stop at most and never reverses.
+		  object.lfoDepth = Math.min(Math.max(0, object.lfoDepth + dx / 200), 1);
+		}
+	  }, elem);
+	}
+
     this.addParameter({
         property: 'Position',
         value: object.trajectoryClock,
@@ -1253,6 +1281,15 @@ export default class GUIWindow {
 		  let speed = this.container.querySelector('.speed .value');
 		  if (speed && (speed.innerHTML != 0 && object.movementSpeed != 0) || (speed.innerHTML == 0 && object.movementSpeed != 0)) {
 			this.replaceTextContent(speed, object.movementSpeed);
+		  }
+
+		  let lfoRate = this.container.querySelector('.lfo-rate .value');
+		  if (lfoRate) {
+			this.replaceTextContent(lfoRate, object.lfoRate);
+		  }
+		  let lfoDepth = this.container.querySelector('.lfo-depth .value');
+		  if (lfoDepth) {
+			this.replaceTextContent(lfoDepth, Math.round(object.lfoDepth * 100));
 		  }
 
           let position = this.container.querySelector('.position .value');
@@ -2307,6 +2344,12 @@ useAudioInput(deviceId) {
 	  }
 	  else if (e.target.parentNode.parentNode.className === "speed") {
 		factor = 10;
+	  }
+	  else if (e.target.parentNode.parentNode.className === "lfo-rate") {
+		factor = 100;
+	  }
+	  else if (e.target.parentNode.parentNode.className === "lfo-depth") {
+		factor = 2;
 	  }
 	  else if (e.target.parentNode.parentNode.className === "spread") {
 		factor = 100;

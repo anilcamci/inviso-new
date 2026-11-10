@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import 'whatwg-fetch';
 const ambisonics = require('ambisonics');
 
+// Trajectories move in real time. Speeds were tuned per frame at 60 fps,
+// so the per-frame step is scaled by 60 * (seconds since last frame).
+const TRAJECTORY_REFERENCE_FPS = 60;
+// Longest frame gap applied at once, so a hidden tab doesn't make objects jump.
+const TRAJECTORY_MAX_FRAME_SECONDS = 0.1;
+
 import Config from '../../data/config';
 import Helpers from '../../utils/helpers';
 import Action from '../model/action';
@@ -35,6 +41,12 @@ export default class SoundObject {
     this.movementSpeed = Config.soundObject.defaultMovementSpeed;
     this.movementDirection = Config.soundObject.defaultMovementDirection;
     this.movementIncrement = null;
+    // sine LFO on trajectory speed. Depth is capped at 1, so the object
+    // slows down to a stop at most and never reverses.
+    this.lfoRate = Config.soundObject.defaultLfoRate;
+    this.lfoDepth = Config.soundObject.defaultLfoDepth;
+    this.lfoTime = 0; // seconds the LFO has run; only advances while moving
+    this.lastTrajectoryFrameTime = null;
     this.oldPosition = null;
     this.hasBeenMoved = false;
     this.lastPathPosition = new THREE.Vector3();
@@ -1229,6 +1241,8 @@ export default class SoundObject {
     });
 
     this.movementSpeed = object.movementSpeed;
+    this.lfoRate = object.lfoRate;
+    this.lfoDepth = object.lfoDepth;
   }
 
   copyOmnisphereSound(file, volume, init, isPlaying = true) {
@@ -1495,8 +1509,21 @@ export default class SoundObject {
     const shouldMove = this.trajectory && !this.isPaused && !this.isMuted 
       && ((play && this.lastTrajControlSource == "global") || (this.trajectoryIsPlaying && this.lastTrajControlSource == "local"));
 
+    if (!shouldMove || this.movementSpeed === 0) {
+      // paused: forget the last frame time so resuming doesn't jump
+      this.lastTrajectoryFrameTime = null;
+    }
+
     if (shouldMove && this.movementSpeed !== 0) {
-      this.trajectoryClock -= this.movementDirection * this.movementIncrement;
+      const now = performance.now();
+      const dt = this.lastTrajectoryFrameTime == null
+        ? 1 / TRAJECTORY_REFERENCE_FPS
+        : Math.min((now - this.lastTrajectoryFrameTime) / 1000, TRAJECTORY_MAX_FRAME_SECONDS);
+      this.lastTrajectoryFrameTime = now;
+      this.lfoTime += dt;
+
+      this.trajectoryClock -= this.movementDirection * this.movementIncrement
+        * TRAJECTORY_REFERENCE_FPS * dt * this.getLfoSpeedFactor();
 
       if (this.trajectoryClock >= 1) {
         if (this.trajectory.spline.closed) {
@@ -1547,6 +1574,14 @@ export default class SoundObject {
     }
   }
 
+  // Multiplier for the trajectory speed: 1 + depth * sin(2π * rate * t).
+  // Depth is clamped to 0-1, so the factor stays between 0 and 2.
+  getLfoSpeedFactor() {
+    const depth = Math.min(Math.max(this.lfoDepth || 0, 0), 1);
+    if (depth === 0) return 1;
+    return 1 + depth * Math.sin(2 * Math.PI * this.lfoRate * this.lfoTime);
+  }
+
   toJSON() {
     return JSON.stringify({
       filename: (this.omniSphere.sound && this.omniSphere.sound && this.omniSphere.sound.name) || null,
@@ -1562,6 +1597,9 @@ export default class SoundObject {
       trajectoryControlSource: this.lastTrajControlSource,
       trajectoryClock: this.trajectoryClock,
       movementDirection: this.movementDirection,
+      lfoRate: this.lfoRate,
+      lfoDepth: this.lfoDepth,
+      lfoTime: this.lfoTime,
       cones: this.cones.map((c) => {
         return {
           file: c.file,
@@ -1584,6 +1622,10 @@ export default class SoundObject {
     // kept so main.import() can restore play/pause once sounds have loaded
     this.savedPlayState = object;
     const loads = [];
+    // trajectory LFO (older export files don't have it: keep the defaults)
+    if (typeof object.lfoRate === 'number') this.lfoRate = object.lfoRate;
+    if (typeof object.lfoDepth === 'number') this.lfoDepth = object.lfoDepth;
+    if (typeof object.lfoTime === 'number') this.lfoTime = object.lfoTime;
     this.containerObject.position.copy(object.position);
     this.altitudeHelper.position.copy(object.position);
     this.raycastSphere.position.copy(object.position);
