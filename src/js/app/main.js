@@ -341,15 +341,18 @@ export default class Main {
         a.click();
       });
     }
+    // Attach the file listener once. It used to be added on every Load
+    // click, so the Nth import ran N times and duplicated the project.
+    const importInput = document.getElementById('import');
+    importInput.addEventListener('change', function() {
+      if (this.files[0]) self.import(this.files[0]);
+      // clear so picking the same file again still fires 'change'
+      this.value = '';
+    }, false);
+
     document.getElementById('load').onclick = function() {
       if (self.audio.context.state == "suspended" || "interrupted") self.audio.context.resume();
-      const i = document.getElementById('import');
-      i.click();
-      i.addEventListener('change', handleFiles, false);
-
-      function handleFiles() {
-        self.import(this.files[0]);
-      }
+      importInput.click();
     }
 
     document.getElementById('outputMode').onclick = function() {
@@ -2471,6 +2474,7 @@ export default class Main {
 
       const exportJSON = JSON.stringify({
         camera: that.camera.threeCamera.toJSON(),
+        globalIsPlaying: that.isPlaying,
         soundObjects: that.soundObjects.map((obj) => {
           if (obj.file) addFile(obj.file);
 
@@ -2582,11 +2586,14 @@ export default class Main {
           cam.updateProjectionMatrix();
         }
 
+        // sound loads, waited for before play/pause states are restored
+        const loads = [];
+
         json.soundObjects.forEach(obj => {
           let parsed = JSON.parse(obj);
 
           let newObj = this.path.createObject(this, true);
-          newObj.fromJSON(obj, importedData);
+          loads.push(newObj.fromJSON(obj, importedData));
           this.setActiveObject(newObj);
           this.isAddingObject = false;
 
@@ -2606,7 +2613,7 @@ export default class Main {
           this.path.points = object.points;
 
           let newObj = this.path.createObject(this, true);
-          newObj.fromJSON(obj, importedData);
+          loads.push(newObj.fromJSON(obj, importedData));
 
           this.setActiveObject(newObj);
           this.isAddingObject = false;
@@ -2638,11 +2645,54 @@ export default class Main {
         this.camera.threeCamera.copy(cam);
         this.camera.threeCamera.updateProjectionMatrix();
 
+        // restore global + trajectory states now, sound states once loaded
+        this.applyImportedPlayStates(json, loads);
+
         document.getElementById('load-status').style.display = 'none';
         document.getElementById('load').style.pointerEvents = 'auto';
         document.getElementById('load').style.opacity = "1";
       }
     );
+    });
+  }
+
+  // Restore the play/pause states saved in an export file. Older files
+  // have none of these fields, so they load with everything playing as before.
+  applyImportedPlayStates(json, loads) {
+    const all = [].concat(this.soundObjects, this.soundZones);
+
+    if (typeof json.globalIsPlaying === 'boolean' && json.globalIsPlaying !== this.isPlaying) {
+      this.isPlaying = json.globalIsPlaying;
+      const btn = document.getElementById('play-pause-button');
+      if (btn) {
+        btn.innerHTML = this.isPlaying ? 'Pause' : 'Play';
+        btn.title = btn.innerHTML;
+      }
+      if (this.isPlaying) this.audio.context.resume();
+
+      // objects already in the scene before this import follow the new
+      // global state, as if the global button had been pressed
+      all.filter(o => !o.savedPlayState).forEach(o => {
+        o.checkPlayState(this);
+        o.toggleAppearance(this);
+      });
+
+      if (this.roomCode != null) {
+        update(child(this.dbRef, 'globals/sound'), {
+          globalIsPlaying: this.isPlaying,
+          lastEdit: this.headKey.key
+        });
+      }
+    }
+
+    // trajectories right away, so nothing saved as paused starts moving
+    const imported = all.filter(o => o.savedPlayState);
+    imported.forEach(o => { if (o.applySavedTrajectoryState) o.applySavedTrajectoryState(); });
+    if (this.headObject && this.headObject.savedPlayState) this.headObject.applySavedTrajectoryState();
+
+    // sound play/pause once every sound has finished loading
+    Promise.all(loads).then(() => {
+      imported.forEach(o => { if (o.savedPlayState) o.applySavedPlayState(); });
     });
   }
 }

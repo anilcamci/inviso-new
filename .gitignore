@@ -16,3 +16,6 @@ public/assets/css/
 
 # log files
 npm-debug.log*
+!src/public/assets/js/z-worker.js
+!src/public/assets/js/deflate.js
+!src/public/assets/js/inflate.js
